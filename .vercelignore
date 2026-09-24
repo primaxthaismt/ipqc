@@ -1,0 +1,13 @@
+node
+node-v20.15.0-win-x64
+node.zip
+.vercel
+*.pyc
+__pycache__
+data/backups
+*.tar.gz
+*.zip
+*.db
+*.bak
+Design.pptx
+Vulcan.jpg

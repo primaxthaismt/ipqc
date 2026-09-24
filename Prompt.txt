@@ -1,0 +1,140 @@
+### 1. System Architecture Blueprint
+
+We will utilize a **Modern Serverless Architecture** focused on speed, offline-capability (for the factory floor), and real-time synchronization.
+
+* **Frontend (Next.js hosted on Vercel):**
+* **Architecture:** A single Next.js application handling two distinct domains via routing (e.g., `/audit/*` for tablets, `/admin/*` for management).
+* **Rendering:** Client-Side Rendering (CSR) for the highly interactive tablet app to ensure snappy UI; Server-Side Rendering (SSR) for management dashboards to securely fetch aggregate data.
+* **PWA (Progressive Web App):** The tablet UI will be configured as a PWA, allowing operators to "install" it on their home screens and utilize local caching (IndexedDB/Zustand) to continue working during Wi-Fi dead zones on the floor.
+
+
+* **Backend & Database (Supabase):**
+* **Database:** PostgreSQL for robust, relational data integrity.
+* **Auth:** Supabase Auth for Role-Based Access Control (Roles: `Operator`, `Line_Leader`, `QA_Manager`).
+* **Storage:** Supabase Storage buckets for uploading photo evidence of defects (`X` marks) directly from the tablet's camera.
+* **Realtime:** Supabase Realtime subscriptions will push notifications to the management dashboard instantly when an anomaly (`X`) is logged, triggering an immediate CAPA (Corrective and Preventive Action) response.
+* **Security:** Row Level Security (RLS) policies will ensure operators only see their assigned line/shift, while managers have global visibility.
+
+
+
+---
+
+### 2. Database Schema (Supabase / PostgreSQL)
+
+To accommodate the structure of your Excel sheets (Process steps, time periods, "V/X/NA" vs. numeric "△" checks), I propose the following core schema:
+
+**`Users`**
+
+* `id` (UUID, PK) - linked to Supabase Auth
+* `full_name` (String)
+* `role` (Enum: operator, manager, admin)
+* `language_pref` (Enum: zh, en, th)
+
+**`Checklist_Templates`** (Allows versioning, currently on V8)
+
+* `id` (UUID, PK)
+* `version_name` (String, e.g., "V8")
+* `is_active` (Boolean)
+
+**`Checklist_Items`** (The actual questions)
+
+* `id` (UUID, PK)
+* `template_id` (UUID, FK)
+* `process_step` (String, e.g., "ESD", "Laser Marking")
+* `order_index` (Integer)
+* `description_zh` / `description_en` / `description_th` (Strings)
+* `input_type` (Enum: `boolean` [V/X], `numeric` [△ >= 5 PCS])
+
+**`Audits`** (The master record for a shift)
+
+* `id` (UUID, PK)
+* `date` (Date)
+* `shift` (String, e.g., "Day", "Night")
+* `line_id` (String)
+* `model_no` (String)
+* `auditor_id` (UUID, FK)
+* `status` (Enum: in_progress, completed)
+
+**`Audit_Results`** (The specific check logged at a specific time)
+
+* `id` (UUID, PK)
+* `audit_id` (UUID, FK)
+* `checklist_item_id` (UUID, FK)
+* `time_period` (String, e.g., "08:00-10:00")
+* `result_status` (Enum: V, X, NA)
+* `numeric_value` (Integer, Nullable - for the △ items)
+* `remark` (Text)
+* `photo_url` (String, Nullable)
+
+**`Corrective_Actions` (CAPA)**
+
+* `id` (UUID, PK)
+* `audit_result_id` (UUID, FK - links directly to the failed check)
+* `status` (Enum: open, investigating, resolved, closed)
+* `root_cause` (Text)
+* `action_taken` (Text)
+* `assigned_to` (UUID, FK)
+
+---
+
+### 3. UI/UX Strategy
+
+Because you are building for two vastly different environments (Factory Floor vs. Management Office), the UI must be bifurcated.
+
+#### A. Tablet Interface (For Operators)
+
+* **Fat-Finger Friendly:** Large touch targets for the `[ V ]`, `[ X ]`, and `[ NA ]` buttons. Avoid dropdowns; use segmented controls or toggle buttons.
+* **Time-Block Context:** The app should automatically default to the current 2-hour time block (e.g., if it's 09:15, the "08:00 - 10:00" column is highlighted and active).
+* **Frictionless Media:** If an operator taps `[ X ]` (Defect), a modal should instantly prompt: "Take Photo" and "Add Remark". The tablet's native camera should open directly via the browser.
+* **Progress Indicators:** A visual progress bar showing how many items in the current time block are completed (e.g., "35/40 Checked").
+* **Localization:** A quick toggle switch at the top to flip the interface language between Chinese, English, and Thai on the fly.
+
+#### B. Management Web Dashboard (For QA / Managers)
+
+* **Real-time Operations Center:** A kanban board for CAPA tracking. When an operator logs an `X` on the floor, a ticket instantly appears in the "New Anomalies" column via Supabase Realtime.
+* **Data Density:** Data-grid tables (using libraries like AG-Grid or TanStack Table) that replicate the familiar Excel layout for historical review but add sorting, filtering by Line, Shift, and Machine Model.
+* **Performance Monitoring:** Dashboards showing Pareto charts of top defect categories (e.g., "Top 5 Process Step Failures this Week") and completion rates of audits.
+* **Export:** One-click PDF/Excel export for external auditors or upper management compliance reporting.
+
+---
+
+### 4. Phased Development Plan
+
+This project can be executed in a 10-12 week timeframe using Agile/Scrum methodologies.
+
+#### Phase 1: Foundation & Architecture (Weeks 1-2)
+
+* **Task:** Setup Vercel & Supabase environments.
+* **Task:** Implement Supabase Database schema and strict Row Level Security (RLS).
+* **Task:** Scaffold Next.js project with Tailwind CSS, Shadcn UI (for standard components), and NextAuth or Supabase Auth.
+* **Task:** Create a data migration script to import the existing "V8 Checklist" Excel/CSV data into the `Checklist_Items` database tables.
+
+#### Phase 2: The Core Auditing Engine (Weeks 3-5)
+
+* **Task:** Develop the Tablet UI layout (Responsive, touch-first).
+* **Task:** Implement the "Start Audit" flow (Select Shift, Line, Model).
+* **Task:** Build the audit execution screen (Rendering questions, saving V/X/NA states).
+* **Task:** Integrate Supabase Storage to allow photo uploads for failed items.
+* **Milestone:** A worker can successfully complete a full shift audit on a tablet, and the data saves to Supabase.
+
+#### Phase 3: Management Dashboard & Reporting (Weeks 6-8)
+
+* **Task:** Develop the Web App Desktop layout.
+* **Task:** Build the interactive data tables for reviewing completed audits.
+* **Task:** Develop the real-time CAPA management module (assigning failures to supervisors, logging root causes).
+* **Task:** Build out analytics charts (Defect rates, audit completion metrics).
+* **Milestone:** QA managers can view data, generate reports, and manage corrective actions.
+
+#### Phase 4: Offline Resilience & PWA (Weeks 9-10)
+
+* **Task:** Configure next-pwa to allow app installation on factory tablets.
+* **Task:** Implement local caching (using React Query offline mutations or IndexedDB).
+* **Task:** Create a background sync queue so if a worker submits data in a Wi-Fi deadzone, it automatically pushes to Supabase when they walk back into range.
+* **Milestone:** App survives network throttling and intermittent connectivity.
+
+#### Phase 5: UAT (User Acceptance Testing) & Deployment (Weeks 11-12)
+
+* **Task:** Deploy staging environment to Vercel.
+* **Task:** Conduct hands-on testing on the SMT line with 2-3 selected operators using actual tablets.
+* **Task:** Refine UI based on operator feedback (e.g., button sizes, translation tweaks).
+* **Task:** Final production deployment and handover.

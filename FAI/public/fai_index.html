@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Smart IPQC Digital Audit System v2</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b0f19">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=45">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+<header class="b-navbar">
+  <div class="b-navbar-top">
+    <div class="b-brand">
+      <div class="b-brand-icon">&#128737;&#65039;</div>
+      <div class="b-brand-name">Smart IPQC <span class="b-brand-badge">v2</span></div>
+    </div>
+    <div class="b-nav-right">
+      <div id="status-badge" class="b-badge-online"><span class="b-status-dot"></span><span id="txt-statusState">Live</span></div>
+      <div id="user-profile-bar" class="b-user-chip">
+        <div class="b-user-avatar" id="user-avatar-letter">N</div>
+        <div class="b-user-name" id="user-display-name">Norman</div>
+        <div class="b-user-role" id="user-display-role" style="display:none;">ADMIN</div>
+        <button id="btn-logout" class="b-btn-link" title="Logout">Logout</button>
+      </div>
+      <button id="btn-open-email-settings" class="b-btn-icon" title="SMTP Email Settings">&#128231; Email</button>
+      <select id="select-lang" class="b-lang-sel"><option value="en" selected>EN</option><option value="zh">ZH</option><option value="th">TH</option></select>
+    </div>
+  </div>
+  <nav class="b-nav-tabs">
+    <button class="b-nav-tab active" data-tab="map"><span class="b-nav-tab-icon">&#128506;&#65039;</span> <span id="txt-navMap">Map</span></button>
+    <button class="b-nav-tab" data-tab="capa"><span class="b-nav-tab-icon">&#9889;</span> <span id="txt-navCapa">CAPA</span></button>
+    <button class="b-nav-tab" data-tab="history"><span class="b-nav-tab-icon">&#128221;</span> <span id="txt-navHistory">History</span></button>
+    <button class="b-nav-tab" data-tab="analytics"><span class="b-nav-tab-icon">&#128202;</span> <span id="txt-navAnalytics">Pareto</span></button>
+    <button class="b-nav-tab" data-tab="users"><span class="b-nav-tab-icon">&#128101;</span> <span id="txt-navUsers">Users</span></button>
+    <button class="b-nav-tab" data-tab="qrgen"><span class="b-nav-tab-icon">&#127991;&#65039;</span> <span id="txt-navQrGen">QR</span></button>
+    <button class="b-nav-tab" data-tab="ai"><span class="b-nav-tab-icon">&#129302;</span> <span id="txt-navAi">AI Risk</span></button>
+    <button class="b-nav-tab" data-tab="fai"><span class="b-nav-tab-icon">&#128203;</span> <span id="txt-navFai">First/Last Art.</span></button>
+  </nav>
+</header>
+<div class="b-status-bar">
+  <div class="b-status-item"><span class="b-stat-dot" style="background:#38bdf8"></span><span class="b-stat-label" id="txt-sbPatrol">Patrol:</span><span class="b-stat-value b-stat-cyan" id="sb-patrol-progress">Loading...</span></div>
+  <div class="b-status-sep"></div>
+  <div class="b-status-item"><span class="b-stat-dot" style="background:#34d399"></span><span class="b-stat-label" id="txt-sbLines">Lines:</span><span class="b-stat-value b-stat-green" id="sb-lines">16/16</span></div>
+  <div class="b-status-sep"></div>
+  <div class="b-status-item"><span class="b-stat-label" id="txt-sbAnomalies">Anomalies:</span><span class="b-stat-value b-stat-white" id="sb-anomalies">0</span></div>
+  <div class="b-status-sep"></div>
+  <div class="b-status-item"><span class="b-stat-label" id="sb-date">-</span></div>
+</div>
+<div class="b-app-body" id="b-app-body">
+  <aside class="b-sidebar" id="b-sidebar">
+    <div class="b-sidebar-section"><button class="b-btn-scan" id="btn-open-scanner-sidebar">&#128247; <span id="txt-scanStationQr">Scan Station QR</span></button></div>
+    <div class="b-sidebar-section"><div class="b-sidebar-title" id="txt-sidebarPhase">Phase</div><div class="b-filter-group" id="sidebar-phase-filters"><button class="b-filter-btn phase active" data-phase="All Phases">All</button><button class="b-filter-btn phase" data-phase="Phase 1">P1</button><button class="b-filter-btn phase" data-phase="Phase 2">P2</button></div></div>
+    <div class="b-sidebar-section"><div class="b-sidebar-title" id="txt-sidebarArea">Area</div><div class="b-filter-group" id="sidebar-area-filters"><button class="b-filter-btn area active" data-area="All Areas">All</button><button class="b-filter-btn area" data-area="SMT Surface Mount Area">SMT</button><button class="b-filter-btn area" data-area="DIP Through-Hole Area">DIP</button></div></div>
+    <div class="b-sidebar-section"><div class="b-sidebar-title" id="txt-sidebarStandard">Standard</div><div class="b-filter-group" id="sidebar-std-filters"><button class="b-filter-btn std active" data-std="All">All</button><button class="b-filter-btn std" data-std="5Q4-046">5Q4-046</button><button class="b-filter-btn std" data-std="5Q4-053">5Q4-053</button></div></div>
+    <div class="b-sidebar-section"><div class="b-sidebar-title" id="txt-sidebarSearch">Search Line</div><input type="text" class="b-search-box" id="sidebar-search" placeholder="Search line name..."></div>
+    <div class="b-sidebar-section"><div class="b-sidebar-title" id="txt-sidebarRecentAudits">Recent Audits</div><div id="sidebar-recent-audits"><div style="font-size:0.72rem;color:#475569;">Loading...</div></div></div>
+  </aside>
+  <!-- Sidebar Toggle Button -->
+  <button id="btn-sidebar-toggle" class="b-sidebar-toggle" title="Toggle Sidebar">
+    <span class="toggle-icon">◀</span>
+  </button>
+  <div class="b-main-content" id="b-main-content">
+    <div id="b-view-map" class="b-view-section active">
+      <div class="b-grid-header"><div class="b-grid-title">&#127981; Factory Bay Matrix - All 16 Production Lines</div><div class="b-grid-meta" id="b-grid-meta">16 Lines . 165 Nodes</div></div>
+      <div class="b-line-grid" id="b-line-grid"><div style="grid-column:1/-1;text-align:center;padding:2rem;color:#475569;">Loading lines...</div></div>
+      <div class="b-audit-panel" id="panel-audit-execution">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.25rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.6rem;"><h2 id="active-station-title" style="color:var(--accent-cyan);font-family:monospace;font-size:1.4rem;">Select a Line</h2><span id="active-standard-badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);padding:0.2rem 0.6rem;border-radius:6px;font-size:0.75rem;font-weight:bold;">DOC: 5Q4-046</span></div>
+            <p id="active-station-sub" style="color:var(--text-muted);font-size:0.9rem;margin-top:0.2rem;">Select a station to begin audit</p>
+          </div>
+          <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+            <div style="background:rgba(15,23,42,0.8);border:1px solid var(--border-color);padding:0.35rem 0.75rem;border-radius:8px;">
+              <label style="font-size:0.7rem;color:var(--text-muted);display:block;" id="txt-auditScopeLabel">Audit Scope:</label>
+              <select id="select-audit-scope" style="background:transparent;border:none;color:#fff;font-size:0.8rem;font-weight:bold;cursor:pointer;"><option value="station" id="opt-scopeStation">Station Focused Items</option><option value="full_standard" id="opt-scopeFull">Full Standard Sheet</option></select>
+            </div>
+            <div style="background:rgba(15,23,42,0.8);border:1px solid var(--border-color);padding:0.5rem 1rem;border-radius:8px;text-align:center;"><div style="font-size:0.75rem;color:var(--text-muted);" id="txt-timeBlock">Time Block</div><div id="active-time-block" style="font-weight:700;color:#60a5fa;">08:00-10:00</div></div>
+            <div style="background:rgba(15,23,42,0.8);border:1px solid var(--border-color);padding:0.5rem 1rem;border-radius:8px;text-align:center;"><div style="font-size:0.75rem;color:var(--text-muted);" id="txt-durationLabel">Duration</div><div id="audit-timer" style="font-weight:700;color:#34d399;font-family:monospace;">00:00</div></div>
+            <button id="btn-back-stations" class="btn-select" style="padding:0.4rem 0.8rem;font-size:0.8rem;color:#38bdf8;border-color:rgba(56,189,248,0.4);"><span>⬅️</span> <span id="txt-btnBackMatrix">Back to Matrix</span></button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-bottom:1.25rem;background:rgba(15,23,42,0.4);padding:0.85rem;border-radius:10px;">
+          <div><label style="font-size:0.75rem;color:var(--text-muted);" id="txt-shiftDay">Shift</label><select id="input-shift" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:6px;padding:0.4rem;color:#fff;font-size:0.8rem;"><option value="Day Shift (08:00 - 20:00)" id="opt-shiftDayFull">Day Shift (08:00 - 20:00)</option><option value="Night Shift (20:00 - 08:00)" id="opt-shiftNightFull">Night Shift (20:00 - 08:00)</option></select></div>
+          <div><label style="font-size:0.75rem;color:var(--text-muted);" id="txt-workOrder">Work Order</label><input type="text" id="input-work-order" placeholder="WO-20260904-01" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);padding:0.4rem 0.65rem;border-radius:6px;color:#38bdf8;font-weight:bold;font-size:0.8rem;"></div>
+          <div><label style="font-size:0.75rem;color:var(--text-muted);" id="txt-modelNo">Model Code</label><input type="text" id="input-model-no" placeholder="PRX-5Q4-V8" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);padding:0.4rem 0.65rem;border-radius:6px;color:#fff;font-size:0.8rem;"></div>
+          <div><label style="font-size:0.75rem;color:var(--text-muted);" id="txt-auditorName">Auditor</label><input type="text" id="input-auditor-name" placeholder="Inspector Name" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);padding:0.4rem 0.65rem;border-radius:6px;color:#fff;font-size:0.8rem;"></div>
+        </div>
+        <div style="margin-bottom:1.25rem;">
+          <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:var(--text-muted);margin-bottom:0.35rem;"><span id="txt-checklistCompletion">Checklist Completion</span><span id="audit-progress-text">0 / 6 Completed</span></div>
+          <div style="background:rgba(255,255,255,0.1);height:7px;border-radius:4px;overflow:hidden;"><div id="audit-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#3b82f6,#34d399);transition:width 0.3s;"></div></div>
+        </div>
+        <div id="container-audit-questions"></div>
+        <div style="margin-top:1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+          <button type="button" id="btn-next-station" class="btn-select" style="padding:0.8rem 1.4rem;font-size:0.9rem;color:#38bdf8;border-color:rgba(56,189,248,0.5);display:flex;align-items:center;gap:0.4rem;font-weight:bold;" onclick="goToNextStation()"><span id="txt-nextStationBtn">Next Station ➔</span></button>
+          <button id="btn-submit-audit" class="btn-primary" style="padding:0.85rem 2rem;font-size:0.95rem;"><span id="txt-submitAuditBtn">Submit Audit Results</span></button>
+        </div>
+      </div>
+      <div id="factory-layout-canvas" style="display:none;"></div>
+      <select id="map-select-line" style="display:none;"><option value="SMT Line T1" selected>SMT Line T1</option><option value="SMT Line T2">SMT Line T2</option><option value="SMT Line T3">SMT Line T3</option><option value="SMT Line T4">SMT Line T4</option><option value="SMT Line P1">SMT Line P1</option><option value="SMT Line P2">SMT Line P2</option><option value="SMT Line P5">SMT Line P5</option><option value="DIP Line DIP51">DIP Line DIP51</option><option value="DIP Line DIP1">DIP Line DIP1</option><option value="DIP Line DIP3">DIP Line DIP3</option><option value="SMT Line P6">SMT Line P6</option><option value="SMT Line P7">SMT Line P7</option><option value="SMT Line T5">SMT Line T5</option><option value="SMT Line P8">SMT Line P8</option><option value="DIP Line DIP52">DIP Line DIP52</option><option value="DIP Line DIP2">DIP Line DIP2</option></select>
+      <div id="auditor-flow-banner" style="display:none;"><span id="auditor-flow-title"></span><div id="auditor-flow-steps"></div></div>
+      <button id="btn-admin-add-station" style="display:none;">Add</button>
+      <button id="btn-toggle-layout-edit" style="display:none;">Edit</button>
+      <button id="btn-save-layout-pos" style="display:none;">Save</button>
+      <button class="layout-mode-btn active" data-mode="option3" style="display:none;">Bay</button>
+      <button class="layout-mode-btn" data-mode="option1" style="display:none;">Linear</button>
+      <button class="layout-mode-btn" data-mode="canvas" style="display:none;">Canvas</button>
+      <input type="text" id="map-input-model" style="display:none;" value="">
+      <input type="text" id="map-input-wo" style="display:none;" value="">
+      <div id="panel-map-layout" style="display:none;"></div>
+    </div>
+    <div id="b-view-capa" class="b-view-section">
+      <div class="glass-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;"><div><div class="card-title" id="txt-capaTitle">CAPA Corrective Action Board</div><p style="font-size:0.85rem;color:var(--text-muted);">Real-time tracking of audit anomalies from detection to closure.</p></div><button id="btn-refresh-capa" class="btn-select">Refresh Board</button></div>
+        <div class="kanban-board">
+          <div class="kanban-col"><div class="kanban-col-title" style="color:#fca5a5;" id="txt-colNew">New</div><div id="col-capa-new"></div></div>
+          <div class="kanban-col"><div class="kanban-col-title" style="color:#fde047;" id="txt-colInvestigating">Investigating</div><div id="col-capa-investigating"></div></div>
+          <div class="kanban-col"><div class="kanban-col-title" style="color:#93c5fd;" id="txt-colAction">Actioning</div><div id="col-capa-actioning"></div></div>
+          <div class="kanban-col"><div class="kanban-col-title" style="color:#86efac;" id="txt-colClosed">Closed</div><div id="col-capa-closed"></div></div>
+        </div>
+      </div>
+    </div>
+    <div id="b-view-history" class="b-view-section">
+      <div class="glass-card" style="min-height:80vh;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;"><div><div class="card-title">Audit History and Report Generation</div><p style="font-size:0.85rem;color:var(--text-muted);">Query completed audits by Date, Line, Model, or Work Order.</p></div></div>
+        <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+          <input type="date" id="history-filter-date" class="login-input" style="flex:1;min-width:150px;background:rgba(15,23,42,0.8);">
+          <select id="history-filter-line" class="login-input" style="flex:1;min-width:150px;background:rgba(15,23,42,0.8);"><option value="">All Lines</option><option value="SMT Line T1">SMT Line T1</option><option value="SMT Line T2">SMT Line T2</option><option value="DIP Line DIP51">DIP Line DIP51</option><option value="DIP Line DIP1">DIP Line DIP1</option><option value="SMT Line P6">SMT Line P6</option><option value="DIP Line DIP52">DIP Line DIP52</option></select>
+          <input type="text" id="history-filter-model" class="login-input" placeholder="Model No" style="flex:1;min-width:150px;background:rgba(15,23,42,0.8);">
+          <input type="text" id="history-filter-wo" class="login-input" placeholder="Work Order" style="flex:1;min-width:150px;background:rgba(15,23,42,0.8);">
+          <button class="btn-primary" onclick="loadAuditHistory()" style="padding:0 1.5rem;">Search</button>
+        </div>
+        <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;text-align:left;"><thead><tr style="border-bottom:2px solid var(--border-color);color:var(--text-muted);"><th style="padding:0.75rem;">Date/Time</th><th style="padding:0.75rem;">Audit ID</th><th style="padding:0.75rem;">Line Name</th><th style="padding:0.75rem;">Model / WO</th><th style="padding:0.75rem;">Station / Overall</th><th style="padding:0.75rem;">Auditor</th><th style="padding:0.75rem;text-align:right;">Actions</th></tr></thead><tbody id="history-table-body"><tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading audit history...</td></tr></tbody></table></div>
+      </div>
+    </div>
+    <div id="b-view-analytics" class="b-view-section">
+      <div class="glass-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;"><div><div class="card-title" id="txt-paretoTitle">Top 10 Defect Pareto Chart</div><p style="font-size:0.85rem;color:var(--text-muted);">Identify vital few quality audit defects for continuous improvement.</p></div><button id="btn-export-pdf" class="btn-primary" onclick="window.print()"><span id="txt-exportReport">Export PDF / Excel Report</span></button></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem;margin-bottom:2rem;">
+          <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:12px;padding:1.25rem;text-align:center;"><div style="font-size:0.85rem;color:var(--text-muted);">Total Audits Executed</div><div id="stat-total-audits" style="font-size:2.2rem;font-weight:800;color:var(--accent-cyan);margin-top:0.3rem;">0</div></div>
+          <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:12px;padding:1.25rem;text-align:center;"><div style="font-size:0.85rem;color:var(--text-muted);" id="txt-complianceActual">Audit Compliance Rate</div><div id="stat-compliance-rate" style="font-size:2.2rem;font-weight:800;color:var(--accent-green);margin-top:0.3rem;">100%</div><div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;" id="txt-complianceTarget">Target: 100%</div></div>
+          <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:12px;padding:1.25rem;text-align:center;"><div style="font-size:0.85rem;color:var(--text-muted);">Open Anomalies</div><div id="stat-open-anomalies" style="font-size:2.2rem;font-weight:800;color:var(--accent-red);margin-top:0.3rem;">0</div></div>
+        </div>
+        <div style="background:rgba(15,23,42,0.8);border:1px solid var(--border-color);border-radius:12px;padding:1.5rem;position:relative;min-height:340px;"><canvas id="paretoChart"></canvas></div>
+      </div>
+    </div>
+    <div id="b-view-users" class="b-view-section">
+      <div class="glass-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;"><div><div class="card-title" id="txt-userMgmtTitle">User and RBAC Control</div><p style="font-size:0.85rem;color:var(--text-muted);">Manage accounts, assign lines, roles (Auditor, Supervisor, Admin), and access levels.</p></div><button id="btn-open-add-user" class="btn-primary"><span id="txt-addUserBtn">Add New User</span></button></div>
+        <div style="overflow-x:auto;background:rgba(15,23,42,0.8);border:1px solid var(--border-color);border-radius:12px;"><table style="width:100%;border-collapse:collapse;text-align:left;font-size:0.9rem;"><thead><tr style="border-bottom:1px solid var(--border-color);background:rgba(30,41,59,0.8);color:var(--text-muted);"><th style="padding:0.85rem 1rem;">Username</th><th style="padding:0.85rem 1rem;">Full Name</th><th style="padding:0.85rem 1rem;">Role</th><th style="padding:0.85rem 1rem;">Line Assignment</th><th style="padding:0.85rem 1rem;">Language</th><th style="padding:0.85rem 1rem;">Status</th><th style="padding:0.85rem 1rem;text-align:right;">Action</th></tr></thead><tbody id="container-user-table"></tbody></table></div>
+      </div>
+    </div>
+    <div id="b-view-qrgen" class="b-view-section">
+      <div class="glass-card"><div class="card-title" id="txt-generateQrTitle">Station QR Sticker Generator</div><p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1.5rem;">Generate unique station QR codes for tablet scanning on the factory floor.</p>
+        <div style="display:flex; gap:1rem; margin-bottom: 1.5rem; flex-wrap:wrap;">
+          <div style="flex:1; min-width: 200px;">
+            <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.4rem;" id="txt-qrSelectLine">Select Line:</label>
+            <select id="qr-select-line" style="width:100%; background:#0f172a; border:1px solid var(--border-color); border-radius:8px; color:#fff; padding:0.6rem;"></select>
+          </div>
+          <div style="flex:1; min-width: 200px;">
+            <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.4rem;" id="txt-qrSelectNode">Select Node:</label>
+            <select id="qr-select-node" style="width:100%; background:#0f172a; border:1px solid var(--border-color); border-radius:8px; color:#fff; padding:0.6rem;"></select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem;" id="container-qr-stickers"></div><div style="margin-top:2rem;display:flex;justify-content:flex-end;"><button onclick="window.print()" class="btn-primary" id="txt-printStickersBtn">Print QR Code Stickers</button></div></div>
+    </div>
+    
+    <div id="b-view-fai" class="b-view-section">
+      <div class="glass-card" style="min-height:80vh;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+          <div>
+            <div class="card-title" id="txt-faiMainTitle">📋 SMT First & Last Article Record (5Q4-045 V5)</div>
+            <p style="font-size:0.85rem;color:var(--text-muted);display:none;" id="txt-faiSubTitle"></p>
+          </div>
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+            <button class="btn-select" id="btn-master-db" onclick="openMasterDatabaseModal()" style="display:flex;align-items:center;gap:0.4rem;border-color:var(--accent-cyan);color:var(--accent-cyan);" title="SMT Golden Master Image Database & Calibration Hub">
+              <span>🖼️</span> <span id="txt-btnMasterDb">Master Image Library (標準板庫)</span>
+            </button>
+            <button class="btn-primary" id="btn-start-first-article" onclick="openFaiWizard('FIRST_ARTICLE')" style="display:flex;align-items:center;gap:0.4rem;">
+              <span>🚀</span> <span id="txt-btnStartFirst">Start First Article (首件)</span>
+            </button>
+            <button class="btn-select" id="btn-start-last-article" onclick="openFaiWizard('LAST_ARTICLE')" style="color:#f59e0b;border-color:rgba(245,158,11,0.4);display:flex;align-items:center;gap:0.4rem;">
+              <span>🏁</span> <span id="txt-btnStartLast">Start Last Article (末件)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Status Summary -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem;">
+          <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-muted);">Today's First Articles</div>
+            <div id="kpi-fai-total" style="font-size:1.8rem;font-weight:800;color:var(--accent-cyan);margin-top:0.2rem;">0</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-muted);">Production Released (OK)</div>
+            <div id="kpi-fai-passed" style="font-size:1.8rem;font-weight:800;color:var(--accent-green);margin-top:0.2rem;">0</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-muted);">Blocked / Action Required</div>
+            <div id="kpi-fai-blocked" style="font-size:1.8rem;font-weight:800;color:var(--accent-red);margin-top:0.2rem;">0</div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+          <select id="fai-filter-type" class="login-input" style="flex:1;min-width:140px;background:rgba(15,23,42,0.8);" onchange="loadFaiHistory()">
+            <option value="">All Types (全部類型)</option>
+            <option value="FIRST_ARTICLE">First Article (首件)</option>
+            <option value="LAST_ARTICLE">Last Article (末件)</option>
+          </select>
+          <select id="fai-filter-line" class="login-input" style="flex:1;min-width:160px;background:rgba(15,23,42,0.8);" onchange="loadFaiHistory()">
+            <option value="">All Lines (全部產線)</option>
+            <option value="SMT Line T1">SMT Line T1</option>
+            <option value="SMT Line T2">SMT Line T2</option>
+            <option value="SMT Line T3">SMT Line T3</option>
+            <option value="SMT Line T4">SMT Line T4</option>
+            <option value="SMT Line T5">SMT Line T5</option>
+            <option value="SMT Line P1">SMT Line P1</option>
+            <option value="SMT Line P2">SMT Line P2</option>
+            <option value="SMT Line P5">SMT Line P5</option>
+            <option value="SMT Line P6">SMT Line P6</option>
+            <option value="SMT Line P7">SMT Line P7</option>
+            <option value="SMT Line P8">SMT Line P8</option>
+          </select>
+          <input type="text" id="fai-filter-search" class="login-input" placeholder="Search Model / WO / Auditor..." style="flex:2;min-width:200px;background:rgba(15,23,42,0.8);" oninput="filterFaiHistoryTable()">
+        </div>
+
+        <!-- Records Table -->
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;text-align:left;font-size:0.88rem;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border-color);color:var(--text-muted);">
+                <th style="padding:0.75rem;">Record ID</th>
+                <th style="padding:0.75rem;">Type</th>
+                <th style="padding:0.75rem;">Line</th>
+                <th style="padding:0.75rem;">Model / WO</th>
+                <th style="padding:0.75rem;">Date/Time</th>
+                <th style="padding:0.75rem;">Inspector / Verifier</th>
+                <th style="padding:0.75rem;">Quality Gate</th>
+                <th style="padding:0.75rem;text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="fai-table-body">
+              <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading 5Q4-045 records...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="b-view-ai" class="b-view-section">
+      <div class="glass-card"><div class="card-title" id="txt-aiTitle">AI Audit Assistant and Risk Linkage</div><p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1.5rem;">Phase 4 predictive anomaly analytics using historical audit findings.</p><div id="container-ai-insights"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-email-report" class="modal-overlay"><div class="modal-content" style="max-width:680px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;"><h3 style="color:#fff;" id="email-modal-title">Send Audit Execution Report Email</h3><button id="btn-close-email-modal" class="btn-select">X</button></div><p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem;">Review generated live report preview before sending email.</p><input type="hidden" id="email-target-type" value="audit"><input type="hidden" id="email-target-id"><div style="margin-bottom:1rem;"><div style="font-size:0.78rem;font-weight:bold;color:var(--accent-cyan);margin-bottom:0.4rem;">Live Generated Report Preview:</div><iframe id="email-report-iframe" style="width:100%;height:320px;border-radius:10px;border:1px solid var(--border-color);background:#0f172a;"></iframe></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Recipient Email Address:</label><input type="email" id="email-recipient-input" value="norman.nan@company.com" style="width:100%;margin-top:0.3rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#38bdf8;font-weight:bold;padding:0.6rem;"></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Quick Recipient Presets:</label><div style="display:flex;gap:0.4rem;margin-top:0.3rem;"><button onclick="document.getElementById('email-recipient-input').value='norman.nan@company.com'" class="btn-select" style="flex:1;font-size:0.75rem;">QA Manager</button><button onclick="document.getElementById('email-recipient-input').value='john.tan@company.com'" class="btn-select" style="flex:1;font-size:0.75rem;">Line Sup</button><button onclick="document.getElementById('email-recipient-input').value='somchai.ipqc@company.com'" class="btn-select" style="flex:1;font-size:0.75rem;">IPQC</button></div></div><div style="margin-bottom:1.25rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Additional Notes / Context:</label><textarea id="email-notes-input" rows="2" style="width:100%;margin-top:0.3rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;" placeholder="Add remarks or distribution notes..."></textarea></div><div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;"><button id="btn-export-audit-excel" type="button" class="btn-select" style="color:#34d399;border-color:rgba(52,211,153,0.4);display:flex;align-items:center;gap:0.45rem;font-weight:bold;">Export Standard Excel</button><div style="display:flex;gap:0.75rem;"><button onclick="document.getElementById('modal-email-report').classList.remove('active')" class="btn-select">Cancel</button><button id="btn-confirm-send-email" class="btn-primary">Send Report Email</button></div></div></div></div>
+<div id="modal-station-editor" class="modal-overlay"><div class="modal-content" style="max-width:520px;"><h3 style="color:#fff;margin-bottom:1rem;" id="modal-station-editor-title">Machine Object Inspector and Editor</h3><input type="hidden" id="edit-station-id"><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Naming Presets:</label><select id="edit-preset-code" style="width:100%;margin-top:0.25rem;" onchange="applyPresetNaming(this.value)"><option value="">-- Custom Code --</option><option value="SMT-L1-PRINT-01">SMT-L1-PRINT-01</option><option value="SMT-L1-SPI-01">SMT-L1-SPI-01</option><option value="SMT-L1-MNT-01">SMT-L1-MNT-01</option><option value="SMT-L1-OVEN-01">SMT-L1-OVEN-01</option><option value="SMT-L1-AOI-01">SMT-L1-AOI-01</option><option value="DIP-L1-INS-01">DIP-L1-INS-01</option><option value="DIP-L1-WAVE-01">DIP-L1-WAVE-01</option></select></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Station Standard Code:</label><input type="text" id="edit-station-code" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#38bdf8;font-weight:bold;padding:0.5rem;"></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Station Display Name:</label><input type="text" id="edit-station-name" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;"></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Production Line:</label><select id="edit-station-line" style="width:100%;margin-top:0.25rem;"><option value="SMT Line T1">SMT Line T1</option><option value="SMT Line T2">SMT Line T2</option><option value="DIP Line DIP1">DIP Line DIP1</option><option value="DIP Line DIP51">DIP Line DIP51</option></select></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Process Area:</label><select id="edit-station-area" style="width:100%;margin-top:0.25rem;"><option value="SMT Surface Mount Area">SMT Surface Mount Area</option><option value="DIP Through-Hole Area">DIP Through-Hole Area</option><option value="Assembly and Packaging Area">Assembly and Packaging Area</option><option value="Quality and ESD Area">Quality and ESD Control</option></select></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Checklist Process Tag:</label><select id="edit-station-process" style="width:100%;margin-top:0.25rem;"><option value="SMT-Printer">SMT-Printer</option><option value="SMT-SPI">SMT-SPI</option><option value="SMT-Mounter">SMT-Mounter</option><option value="SMT-Reflow">SMT-Reflow</option><option value="SMT-AOI">SMT-AOI</option><option value="DIP-Insertion">DIP-Insertion</option><option value="DIP-Wave">DIP-Wave</option><option value="ESD">ESD</option></select></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:1.25rem;"><div><label style="font-size:0.75rem;color:var(--text-muted);">Step Sequence:</label><input type="number" id="edit-station-seq" value="1" min="1" max="99" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;text-align:center;font-weight:bold;"></div><div><label style="font-size:0.75rem;color:var(--text-muted);"><span class="lang-en">X Position:</span><span class="lang-zh">px:</span><span class="lang-th">X Position:</span></label><input type="number" id="edit-station-posx" value="50" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#38bdf8;padding:0.5rem;text-align:center;"></div><div><label style="font-size:0.75rem;color:var(--text-muted);"><span class="lang-en">Y Position:</span><span class="lang-zh">px:</span><span class="lang-th">Y Position:</span></label><input type="number" id="edit-station-posy" value="50" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#38bdf8;padding:0.5rem;text-align:center;"></div></div><div style="display:flex;justify-content:space-between;gap:0.75rem;"><button id="btn-delete-station" class="btn-select" style="color:#ef4444;border-color:rgba(239,68,68,0.4);">Delete Node Object</button><div style="display:flex;gap:0.5rem;"><button id="btn-close-station-editor" class="btn-select">Cancel</button><button id="btn-save-station-editor" class="btn-primary">Save Node Attributes</button></div></div></div></div>
+<div id="modal-login" class="modal-overlay active"><div class="modal-content" style="max-width:440px;"><div style="text-align:center;margin-bottom:1.5rem;"><div id="login-lock-icon" style="font-size:2.5rem;margin-bottom:0.5rem;">&#128272;</div><h2 style="color:#fff;font-size:1.4rem;" id="txt-loginModalTitle">Login Smart IPQC System</h2><p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.2rem;">Enter your inspector or supervisor credentials to access the digital audit floor.</p></div><div style="margin-bottom:1rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Username / Email / Employee ID:</label><input type="text" id="login-username" placeholder="e.g. admin or norman.nan" autocomplete="username" style="width:100%;margin-top:0.3rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.65rem;"></div><div style="margin-bottom:1.25rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Password:</label><input type="password" id="login-password" placeholder="Enter your password (e.g. admin123)" autocomplete="current-password" style="width:100%;margin-top:0.3rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.65rem;"></div><button id="btn-submit-login" class="btn-primary" style="width:100%;padding:0.85rem;"><span id="txt-loginBtn">System Login</span></button><div style="text-align:center;margin-top:1.25rem;border-top:1px solid var(--border-color);padding-top:1rem;"><button id="btn-toggle-to-register" class="btn-select" style="width:100%;padding:0.65rem;font-size:0.82rem;color:var(--accent-cyan);">Register as Inspector</button><button type="button" onclick="if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(regs){for(let r of regs)r.unregister();});}caches.keys().then(function(k){for(let key of k)caches.delete(key);});localStorage.clear();sessionStorage.clear();alert('Cache cleared! Refreshing...');window.location.reload(true);" class="btn-select" style="width:100%;padding:0.5rem;margin-top:0.5rem;font-size:0.75rem;color:#ef4444;border-color:rgba(239,68,68,0.3);">Clear Cache and Reset System</button></div></div></div>
+<div id="unlock-splash-overlay" class="unlock-overlay">
+  <div class="unlock-container">
+    <div class="unlock-glow-ring"></div>
+    <div class="unlock-icon-wrap">
+      <svg id="unlock-svg" class="padlock-svg" viewBox="0 0 100 100" width="130" height="130">
+        <defs>
+          <linearGradient id="padlock-body-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1e293b"/>
+            <stop offset="100%" stop-color="#0f172a"/>
+          </linearGradient>
+          <filter id="glow-filter" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+        <path id="padlock-shackle" class="padlock-shackle" d="M32 46 V28 C32 17, 68 17, 68 28 V46" fill="none" stroke="#38bdf8" stroke-width="8" stroke-linecap="round"/>
+        <rect id="padlock-body" class="padlock-body" x="20" y="44" width="60" height="48" rx="12" fill="url(#padlock-body-grad)" stroke="#38bdf8" stroke-width="3.5"/>
+        <circle class="padlock-keyhole" cx="50" cy="63" r="5" fill="#38bdf8"/>
+        <path class="padlock-keyhole" d="M47.5 65 L52.5 65 L51.5 76 L48.5 76 Z" fill="#38bdf8"/>
+      </svg>
+    </div>
+    <div class="unlock-text-group">
+      <div id="unlock-title" class="unlock-title">VERIFYING ACCESS</div>
+      <div id="unlock-subtitle" class="unlock-subtitle">Smart IPQC Digital Floor System</div>
+    </div>
+  </div>
+</div>
+<div id="modal-register" class="modal-overlay"><div class="modal-content" style="max-width:460px;"><div style="text-align:center;margin-bottom:1.25rem;"><div style="font-size:2.2rem;margin-bottom:0.4rem;">&#128221;</div><h2 style="color:#fff;font-size:1.3rem;" id="txt-registerModalTitle">Inspector Account Registration</h2><p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.2rem;">Register your Inspector profile for factory floor digital audit access.</p></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Employee ID / Username:</label><input type="text" id="reg-username" placeholder="e.g. AUD-101 or somchai" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.6rem;"></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Full Name:</label><input type="text" id="reg-fullname" placeholder="e.g. Somchai Prasert (IPQC Inspector)" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.6rem;"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.85rem;"><div><label style="font-size:0.8rem;color:var(--text-muted);">Line Assignment:</label><select id="reg-line" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.6rem;"><option value="All Lines">All Lines</option><option value="SMT Line T1">SMT Line T1</option><option value="DIP Line DIP1">DIP Line DIP1</option></select></div><div><label style="font-size:0.8rem;color:var(--text-muted);">Language:</label><select id="reg-lang" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.6rem;"><option value="th">Thai</option><option value="en" selected>English</option><option value="zh">Chinese</option></select></div></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Email Address:</span><span class="lang-zh">Optional:</span><span class="lang-th">Email Address:</span></label><input type="email" id="reg-email" placeholder="inspector@company.com" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.6rem;"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1.25rem;"><div><label style="font-size:0.8rem;color:var(--text-muted);">Password:</label><input type="password" id="reg-password" placeholder="Min 4 chars" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.6rem;"></div><div><label style="font-size:0.8rem;color:var(--text-muted);">Confirm Password:</label><input type="password" id="reg-password-confirm" placeholder="Re-enter password" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.6rem;"></div></div><button id="btn-submit-register" class="btn-primary" style="width:100%;padding:0.85rem;margin-bottom:0.75rem;"><span id="txt-registerBtn">Create Account and Login</span></button><div style="text-align:center;"><button id="btn-toggle-to-login" class="btn-select" style="width:100%;padding:0.55rem;font-size:0.8rem;">Back to Login</button></div></div></div>
+<div id="modal-add-user" class="modal-overlay"><div class="modal-content" style="max-width:480px;"><h3 style="color:#fff;margin-bottom:1rem;">Add New System User</h3><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Username:</span><span class="lang-zh">Login ID:</span><span class="lang-th">Username:</span></label><input type="text" id="add-user-username" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;"></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Password:</label><input type="password" id="add-user-password" value="password123" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;"></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Full Name and Title:</label><input type="text" id="add-user-fullname" placeholder="e.g. Somchai (IPQC Eng)" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;"></div><div style="margin-bottom:0.85rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Role and Authority:</label><select id="add-user-role" style="width:100%;margin-top:0.25rem;"><option value="auditor">Auditor / Operator</option><option value="supervisor">Line Supervisor</option><option value="admin">QA Manager / Admin</option></select></div><div style="margin-bottom:1.25rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Line Assignment:</label><select id="add-user-line" style="width:100%;margin-top:0.25rem;"><option value="All Lines">All Lines (Global)</option><option value="SMT Line T1">SMT Line T1</option><option value="DIP Line DIP1">DIP Line DIP1</option></select></div><div style="display:flex;justify-content:flex-end;gap:0.75rem;"><button id="btn-close-user-modal" class="btn-select">Cancel</button><button id="btn-save-user-modal" class="btn-primary">Create User Account</button></div></div></div>
+<div id="modal-scanner" class="modal-overlay"><div class="modal-content"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;"><h3 style="color:#fff;">Scan Station QR Code</h3><button id="btn-close-scanner" class="btn-select">X</button></div><div id="qr-reader" style="width:100%;border-radius:12px;overflow:hidden;background:#000;"></div><p style="text-align:center;font-size:0.8rem;color:var(--text-muted);margin-top:1rem;">Align station QR code within the camera frame</p></div></div>
+<div id="modal-defect" class="modal-overlay"><div class="modal-content"><h3 style="color:var(--accent-red);margin-bottom:0.75rem;" id="txt-mandatoryPhotoTitle">Mandatory Defect Photo Evidence Required</h3><p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">Defect photo and description are required for failed audit checks (NG).</p><div style="margin-bottom:1rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Defect Description and Root Cause:</label><textarea id="modal-defect-remark" rows="3" class="remark-input" style="width:100%;margin-top:0.3rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.6rem;" placeholder="Describe exact defect location and cause..."></textarea></div><div style="margin-bottom:1.25rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Attach Photo Evidence:</label><input type="file" id="modal-defect-file" accept="image/*" style="display:none;" onchange="handleDefectImageUpload(event)"><button onclick="document.getElementById('modal-defect-file').click()" class="btn-select" style="width:100%;margin-top:0.3rem;padding:0.75rem;">Choose File or Take Photo</button><div id="defect-photo-preview" style="margin-top:0.5rem;text-align:center;"></div></div><div style="display:flex;justify-content:flex-end;gap:0.75rem;"><button id="btn-cancel-defect" class="btn-select" onclick="closeDefectModal()">Cancel</button><button id="btn-save-defect" class="btn-primary" onclick="confirmDefectEntry()">Confirm Defect Entry</button></div></div></div>
+<div id="modal-capa-update" class="modal-overlay"><div class="modal-content"><h3 style="color:#fff;margin-bottom:1rem;">Update CAPA Action Status</h3><input type="hidden" id="capa-modal-id"><div style="margin-bottom:1rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Status Column:</label><select id="capa-modal-status" style="width:100%;margin-top:0.3rem;"><option value="OPEN">New Anomaly (Open)</option><option value="INVESTIGATING">Investigating</option><option value="ACTIONING">Action Required</option><option value="CLOSED">Closed (Resolved)</option></select></div><div style="margin-bottom:1rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Assigned Owner / Supervisor:</label><input type="text" id="capa-modal-owner" style="width:100%;margin-top:0.3rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;"></div><div style="margin-bottom:1rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Root Cause Analysis:</label><textarea id="capa-modal-rootcause" rows="2" style="width:100%;margin-top:0.3rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;"></textarea></div><div style="margin-bottom:1.25rem;"><label style="font-size:0.8rem;color:var(--text-muted);">Corrective Action Taken:</label><textarea id="capa-modal-action" rows="2" style="width:100%;margin-top:0.3rem;background:#0f172a;border:1px solid var(--border-color);border-radius:8px;color:#fff;padding:0.5rem;"></textarea></div><div style="display:flex;justify-content:space-between;gap:0.75rem;"><button id="btn-email-clca-modal" class="btn-select" style="color:#38bdf8;border-color:rgba(56,189,248,0.4);">Send CLCA Issue Email</button><div style="display:flex;gap:0.5rem;"><button id="btn-close-capa-modal" class="btn-select">Cancel</button><button id="btn-save-capa-modal" class="btn-primary">Save CAPA Ticket</button></div></div></div></div>
+<div id="modal-email-settings" class="modal-overlay"><div class="modal-card" style="max-width:520px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;"><h3 style="margin:0;color:#38bdf8;">SMTP Email Configuration</h3><button id="btn-close-email-settings-modal" class="btn-select" style="padding:0.2rem 0.6rem;">X</button></div><div id="email-settings-status-badge" style="background:rgba(15,23,42,0.6);padding:0.75rem 1rem;border-radius:8px;border:1px solid var(--border-color);margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;"><div style="font-size:0.85rem;color:var(--text-muted);">Current Connection Status:</div><div id="email-status-text" style="font-weight:bold;font-size:0.85rem;color:#facc15;">Checking...</div></div><div style="display:grid;grid-template-columns:2fr 1fr;gap:0.75rem;margin-bottom:1rem;"><div><label style="font-size:0.8rem;color:var(--text-muted);">SMTP Host Server</label><input type="text" id="cfg-smtp-host" value="smtp.gmail.com" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);padding:0.45rem 0.75rem;border-radius:8px;color:#fff;"></div><div><label style="font-size:0.8rem;color:var(--text-muted);">Port</label><input type="number" id="cfg-smtp-port" value="587" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);padding:0.45rem 0.75rem;border-radius:8px;color:#fff;"></div></div><div style="margin-bottom:1rem;"><label style="font-size:0.8rem;color:var(--text-muted);">SMTP Account Email</label><input type="email" id="cfg-smtp-user" value="primaxthaismt@gmail.com" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);padding:0.45rem 0.75rem;border-radius:8px;color:#38bdf8;font-weight:bold;"></div><div style="margin-bottom:1rem;"><label style="font-size:0.8rem;color:var(--text-muted);">SMTP Password / Gmail App Password</label><input type="password" id="cfg-smtp-password" placeholder="Enter 16-char Gmail App Password" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);padding:0.45rem 0.75rem;border-radius:8px;color:#fff;"></div><div style="margin-bottom:1.25rem;"><label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Sender Email</span><span class="lang-zh">From</span><span class="lang-th">Sender Email</span></label><input type="email" id="cfg-smtp-from" value="primaxthaismt@gmail.com" style="width:100%;margin-top:0.25rem;background:#0f172a;border:1px solid var(--border-color);padding:0.45rem 0.75rem;border-radius:8px;color:#fff;"></div><div style="display:flex;justify-content:space-between;gap:0.75rem;"><button id="btn-test-email-send" class="btn-select" style="color:#34d399;border-color:rgba(52,211,153,0.4);">Send Test Email</button><div style="display:flex;gap:0.5rem;"><button id="btn-close-email-settings" class="btn-select">Cancel</button><button id="btn-save-email-settings" class="btn-primary">Save SMTP Settings</button></div></div></div></div>
+
+<!-- 5Q4-045 FAI / LAI Interactive Execution Modal -->
+
+  <!-- Persistent SMT Golden Master Image Database Modal -->
+  <div id="modal-master-db" class="modal-overlay" style="z-index: 1999;">
+    <div class="modal-content" style="max-width:1050px;width:95vw;background:#0f172a;border:1px solid #38bdf8;border-radius:12px;padding:1.5rem;box-shadow:0 20px 50px rgba(0,0,0,0.8);">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;padding-bottom:0.85rem;margin-bottom:1.25rem;">
+        <div>
+          <div style="display:flex;align-items:center;gap:0.6rem;">
+            <h3 style="margin:0;color:#38bdf8;font-size:1.25rem;display:flex;align-items:center;gap:0.5rem;">
+              <span>🖼️</span> <span>SMT Golden Master Image Database (標準板資料庫)</span>
+            </h3>
+            <span id="master-db-total-count" style="font-size:0.75rem;background:rgba(56,189,248,0.2);color:#38bdf8;border:1px solid #38bdf8;padding:0.2rem 0.6rem;border-radius:12px;font-weight:bold;">
+              Loading...
+            </span>
+          </div>
+          <div style="font-size:0.78rem;color:#94a3b8;margin-top:0.3rem;">
+            Centralized registry of verified PCBA Golden Standards, Optical Landmarks, and Polarity Rules for FAI / LAI inspections.
+          </div>
+        </div>
+        <button type="button" class="btn-select" onclick="closeMasterDatabaseModal()" style="padding:0.35rem 0.75rem;font-size:1rem;color:#94a3b8;">✕</button>
+      </div>
+
+      <!-- Search and Actions Bar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap;background:#0b0f19;padding:0.75rem 1rem;border-radius:8px;border:1px solid #1e293b;">
+        <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:260px;">
+          <input type="text" id="master-db-search" class="login-input" placeholder="🔍 Search by Model or PCB Part Number..." oninput="filterMasterDatabaseList()" style="width:100%;padding:0.45rem 0.8rem;font-size:0.85rem;">
+        </div>
+        <div style="display:flex;gap:0.6rem;align-items:center;">
+          <button type="button" class="btn-select" onclick="loadMasterDatabaseList()" style="padding:0.45rem 0.85rem;font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;" title="Refresh library list">
+            <span>🔄</span> <span>Refresh</span>
+          </button>
+          <button type="button" class="btn-primary" onclick="registerNewMasterBoard()" style="padding:0.45rem 1rem;font-size:0.82rem;display:flex;align-items:center;gap:0.4rem;background:#0284c7;border-color:#0284c7;font-weight:bold;">
+            <span>➕</span> <span>Register New Master Board</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Master Boards Grid Container -->
+      <div id="master-db-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));gap:1.1rem;max-height:60vh;overflow-y:auto;padding:0.25rem 0.5rem 0.5rem 0.1rem;">
+        <!-- Dynamically rendered cards -->
+      </div>
+
+      <!-- Footer Info -->
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #334155;padding-top:0.85rem;margin-top:1.25rem;font-size:0.72rem;color:#94a3b8;">
+        <div>
+          <span>📌 Master profiles are stored on the local server and referenced dynamically during AOI Step 3 inspections.</span>
+        </div>
+        <div>
+          <button type="button" class="btn-select" onclick="closeMasterDatabaseModal()" style="padding:0.35rem 0.9rem;font-size:0.8rem;">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive SMT Golden Master Image Setup & Landmark Calibration Modal -->
+  <div id="modal-master-setup" class="modal-overlay" style="z-index: 2000;">
+    <div class="modal-content" style="max-width:960px;width:95vw;background:#0f172a;border:1px solid #38bdf8;border-radius:12px;padding:1.25rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;padding-bottom:0.75rem;margin-bottom:1rem;">
+        <div>
+          <h3 style="margin:0;color:#38bdf8;font-size:1.15rem;display:flex;align-items:center;gap:0.5rem;">
+            <span>🛠️ SMT FAI Golden Master Setup & Optical Landmark Calibration</span>
+          </h3>
+          <div style="font-size:0.78rem;color:#94a3b8;margin-top:0.25rem;">
+            Define the official Master Board standards: Optical Fiducials, IC Packages (Pin 1 orientation), Connectors, and Silkscreen markers.
+          </div>
+        </div>
+        <button type="button" class="btn-select" onclick="closeMasterSetupModal()" style="padding:0.3rem 0.7rem;">✕</button>
+      </div>
+
+      <!-- Model Info Bar -->
+      <div style="display:flex;gap:1rem;margin-bottom:1rem;background:#0b0f19;padding:0.75rem 1rem;border-radius:8px;border:1px solid #1e293b;align-items:center;flex-wrap:wrap;">
+        <div style="flex:1;min-width:180px;">
+          <label style="font-size:0.72rem;color:#94a3b8;display:block;">Product Model:</label>
+          <input type="text" id="setup-master-model" class="login-input" value="PRX-8800" style="width:100%;margin-top:0.2rem;font-size:0.85rem;padding:0.4rem;">
+        </div>
+        <div style="flex:1;min-width:180px;">
+          <label style="font-size:0.72rem;color:#94a3b8;display:block;">PCB Part Number:</label>
+          <input type="text" id="setup-master-pn" class="login-input" value="715G9988-P01" style="width:100%;margin-top:0.2rem;font-size:0.85rem;padding:0.4rem;">
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
+          <input type="file" id="master-file-input" accept="image/*" style="display:none;" onchange="handleMasterFileUpload(this)">
+          <button type="button" class="btn-select" onclick="document.getElementById('master-file-input').click()" style="font-size:0.78rem;padding:0.45rem 0.65rem;border-color:#38bdf8;color:#38bdf8;" title="Upload image from file">
+            <span>📂 Upload</span>
+          </button>
+          <button type="button" class="btn-select" onclick="openMasterCameraCapture()" style="font-size:0.78rem;padding:0.45rem 0.65rem;border-color:#a78bfa;color:#a78bfa;font-weight:bold;" title="Capture from camera / USB cam">
+            <span>📷 Camera</span>
+          </button>
+          <button type="button" class="btn-select" onclick="detectLandmarksOnSetupMaster()" style="font-size:0.78rem;padding:0.45rem 0.65rem;border-color:#f59e0b;color:#f59e0b;font-weight:bold;" title="Auto-Detect Landmarks">
+            <span>🎯 Auto</span>
+          </button>
+          <button type="button" id="btn-add-roi" class="btn-select" style="font-size:0.78rem;padding:0.45rem 0.65rem;border-color:#34d399;color:#34d399;font-weight:bold;">
+            <span>➕ Add ROI</span>
+          </button>
+          <button type="button" class="btn-select" onclick="clearAllLandmarks()" style="font-size:0.78rem;padding:0.45rem 0.65rem;border-color:#ef4444;color:#ef4444;">
+            <span>🗑️ Clear</span>
+          </button>
+          <button type="button" id="btn-edit-mode" class="btn-select" onclick="enterEditMode()" style="font-size:0.78rem;padding:0.45rem 0.75rem;border-color:#fb923c;color:#fb923c;font-weight:bold;" title="Open full-screen professional edit workspace">
+            <span>🔧 Edit Mode</span>
+          </button>
+          <span id="modal-ultralytics-badge" style="font-size:0.75rem;background:rgba(5,150,105,0.2);color:#34d399;border:1px solid #059669;padding:0.4rem 0.65rem;border-radius:6px;display:inline-flex;align-items:center;gap:5px;">
+            <span>⚡ Ultralytics API:</span> <strong style="color:#fff;">norman-nan / yolo26n</strong>
+          </span>
+        </div>
+      </div>
+
+      <!-- Main Visual Workspace: Canvas (Left) + Landmarks Table (Right) -->
+      <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:1rem;margin-bottom:1rem;">
+        
+        <!-- Master Board Canvas with Anchors -->
+        <div style="background:#0b0f19;border:1px solid #334155;border-radius:8px;padding:0.75rem;text-align:center;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="font-size:0.78rem;font-weight:bold;color:#38bdf8;">Official Master Board Optical View</span>
+            <span style="font-size:0.7rem;color:#94a3b8;">Click landmark to inspect</span>
+          </div>
+          <div style="position:relative;display:inline-block;background:#000;border-radius:6px;overflow:hidden;max-height:360px;max-width:100%;width:fit-content;margin:0 auto;">
+            <img id="setup-master-img" src="/img_golden_master.jpg?v=3" style="max-height:360px;max-width:100%;display:block;margin:0 auto;" alt="Master Board">
+            <canvas id="setup-master-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:move;"></canvas>
+          </div>
+          <div style="margin-top:0.5rem;display:flex;gap:0.75rem;font-size:0.68rem;color:#94a3b8;justify-content:center;flex-wrap:wrap;">
+            <span>🎯 Cyan: Fiducials</span>
+            <span>🔲 Green: ICs (Pin 1)</span>
+            <span>🔌 Orange: Connectors</span>
+            <span>🏷️ Magenta: Markings</span>
+          </div>
+        </div>
+
+        <!-- Landmark List & Physical Rules -->
+        <div style="background:#0b0f19;border:1px solid #334155;border-radius:8px;padding:0.75rem;display:flex;flex-direction:column;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="font-size:0.78rem;font-weight:bold;color:#f8fafc;">Optical Landmarks & Polarity Rules</span>
+            <span id="setup-landmarks-count" style="font-size:0.7rem;color:#38bdf8;font-weight:bold;">6 Active Landmarks</span>
+          </div>
+          <div style="flex:1;max-height:320px;overflow-y:auto;border:1px solid #1e293b;border-radius:6px;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.72rem;text-align:left;">
+              <thead>
+                <tr style="border-bottom:1px solid #334155;color:#94a3b8;background:#0f172a;">
+                  <th style="padding:0.35rem;">ID</th>
+                  <th style="padding:0.35rem;">Type</th>
+                  <th style="padding:0.35rem;">Anchor Pos (X, Y)</th>
+                  <th style="padding:0.35rem;">Rule / Polarity</th>
+                </tr>
+              </thead>
+              <tbody id="setup-landmarks-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:0.75rem;padding:0.5rem;background:#0f172a;border-radius:6px;border:1px dashed #334155;font-size:0.7rem;color:#94a3b8;">
+            Tolerance Standard: <b>±0.05mm (3.5px)</b> | Polarity Verification: <b>YOLOv8 Active</b>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #334155;padding-top:0.75rem;">
+        <div style="font-size:0.75rem;color:#94a3b8;">
+          Profile will be stored to server disk and used for all future FAI / LAI inspections.
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button type="button" class="btn-select" onclick="closeMasterSetupModal()">Cancel</button>
+          <button type="button" class="btn-primary" onclick="saveMasterProfileFromSetup()" style="background:#059669;border-color:#059669;font-weight:bold;">
+            <span>💾 Save & Activate Master Profile</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- ===== CAMERA CAPTURE MODAL ===== -->
+<div id="modal-master-camera" class="modal-overlay" style="z-index:2100;">
+  <div class="modal-content" style="max-width:820px;width:95vw;background:#0a0f1e;border:1px solid #a78bfa;border-radius:12px;padding:1.25rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;padding-bottom:0.75rem;margin-bottom:1rem;">
+      <div>
+        <h3 style="margin:0;color:#a78bfa;font-size:1.1rem;display:flex;align-items:center;gap:0.5rem;">
+          <span>📷 Live Camera Capture — Master Board Photo</span>
+        </h3>
+        <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.2rem;">Position the PCBA board flat under the camera. Ensure even lighting and full-board visibility.</div>
+      </div>
+      <button type="button" class="btn-select" onclick="closeMasterCamera()" style="padding:0.3rem 0.7rem;">✕</button>
+    </div>
+
+    <!-- Camera Controls Bar -->
+    <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:0.85rem;flex-wrap:wrap;">
+      <div style="flex:1;min-width:220px;">
+        <label style="font-size:0.72rem;color:#94a3b8;display:block;margin-bottom:0.2rem;">Camera Device:</label>
+        <select id="camera-device-select" class="login-input" style="width:100%;font-size:0.82rem;padding:0.35rem;" onchange="switchCameraDevice(this.value)">
+          <option value="">Detecting cameras...</option>
+        </select>
+      </div>
+      <div style="min-width:140px;">
+        <label style="font-size:0.72rem;color:#94a3b8;display:block;margin-bottom:0.2rem;">Resolution:</label>
+        <select id="camera-resolution-select" class="login-input" style="width:100%;font-size:0.82rem;padding:0.35rem;" onchange="applyCameraResolution()">
+          <option value="1920x1080">1920×1080 (Full HD)</option>
+          <option value="1280x720" selected>1280×720 (HD)</option>
+          <option value="640x480">640×480 (SD)</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem;padding-top:1.2rem;">
+        <label style="font-size:0.72rem;color:#94a3b8;">Mirror:</label>
+        <button id="btn-camera-mirror" type="button" class="btn-select" onclick="toggleCameraMirror()" style="font-size:0.75rem;padding:0.3rem 0.6rem;border-color:#475569;color:#94a3b8;">OFF</button>
+      </div>
+    </div>
+
+    <!-- Live Feed + Preview Split -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <!-- Live feed -->
+      <div style="background:#000;border:2px solid #1e293b;border-radius:8px;overflow:hidden;text-align:center;position:relative;">
+        <div style="position:absolute;top:0.4rem;left:0.5rem;font-size:0.65rem;background:rgba(239,68,68,0.85);color:#fff;padding:0.15rem 0.5rem;border-radius:12px;font-weight:bold;z-index:5;" id="cam-live-badge">● LIVE</div>
+        <video id="master-camera-video" autoplay playsinline muted style="width:100%;max-height:300px;object-fit:contain;display:block;"></video>
+        <div id="cam-no-signal" style="display:none;padding:3rem 1rem;color:#475569;font-size:0.85rem;">📷 No camera signal.<br>Select a camera above.</div>
+      </div>
+      <!-- Captured preview -->
+      <div style="background:#0b0f19;border:2px solid #1e293b;border-radius:8px;overflow:hidden;text-align:center;position:relative;">
+        <div style="position:absolute;top:0.4rem;left:0.5rem;font-size:0.65rem;background:rgba(56,189,248,0.7);color:#fff;padding:0.15rem 0.5rem;border-radius:12px;font-weight:bold;z-index:5;">CAPTURE PREVIEW</div>
+        <canvas id="master-camera-preview" style="width:100%;max-height:300px;object-fit:contain;display:block;"></canvas>
+        <div id="cam-preview-placeholder" style="padding:3rem 1rem;color:#475569;font-size:0.85rem;">📸 No capture yet.<br>Click "Capture" to take a photo.</div>
+      </div>
+    </div>
+
+    <!-- Quality Indicators -->
+    <div id="cam-quality-bar" style="display:none;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:0.65rem 1rem;margin-bottom:0.85rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
+      <span style="font-size:0.75rem;color:#94a3b8;">Image Quality:</span>
+      <span style="font-size:0.75rem;"><span style="color:#94a3b8;">Lighting:</span> <strong id="cam-q-lighting" style="color:#38bdf8;">—</strong></span>
+      <span style="font-size:0.75rem;"><span style="color:#94a3b8;">Sharpness:</span> <strong id="cam-q-sharpness" style="color:#38bdf8;">—</strong></span>
+      <span style="font-size:0.75rem;"><span style="color:#94a3b8;">Angle:</span> <strong id="cam-q-angle" style="color:#38bdf8;">—</strong></span>
+      <span id="cam-q-verdict" style="font-size:0.75rem;font-weight:bold;color:#34d399;"></span>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #334155;padding-top:0.85rem;">
+      <button type="button" class="btn-select" onclick="closeMasterCamera()" style="font-size:0.82rem;">Cancel</button>
+      <div style="display:flex;gap:0.65rem;">
+        <button id="btn-cam-capture" type="button" class="btn-select" onclick="captureMasterFrame()" style="font-size:0.85rem;padding:0.5rem 1.2rem;border-color:#a78bfa;color:#a78bfa;font-weight:bold;">
+          📸 Capture
+        </button>
+        <button id="btn-cam-retake" type="button" class="btn-select" onclick="retakeMasterCapture()" style="font-size:0.82rem;display:none;border-color:#f59e0b;color:#f59e0b;">
+          🔄 Retake
+        </button>
+        <button id="btn-cam-use" type="button" class="btn-primary" onclick="useCapturedMasterImage()" style="font-size:0.85rem;padding:0.5rem 1.2rem;background:#7c3aed;border-color:#7c3aed;font-weight:bold;display:none;">
+          ✅ Use This Image
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EDIT MODE FULL-SCREEN OVERLAY ===== -->
+<div id="edit-mode-overlay" style="display:none;position:fixed;inset:0;z-index:2200;background:#070c18;flex-direction:column;">
+
+  <!-- Edit Mode Header Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;background:#0d1526;border-bottom:1px solid #334155;padding:0.6rem 1.1rem;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <span style="color:#fb923c;font-size:1rem;font-weight:bold;">🔧 EDIT MODE</span>
+      <span id="em-model-badge" style="font-size:0.75rem;background:rgba(251,146,60,0.15);color:#fb923c;border:1px solid #fb923c;padding:0.2rem 0.6rem;border-radius:12px;font-weight:bold;"></span>
+      <span style="font-size:0.75rem;color:#64748b;">High-Resolution Optical Landmark Calibration Workspace</span>
+    </div>
+    <div style="display:flex;gap:0.65rem;align-items:center;">
+      <span id="em-zoom-label" style="font-size:0.75rem;color:#94a3b8;min-width:60px;text-align:right;">100%</span>
+      <button type="button" class="btn-select" onclick="updateEditZoom(-0.2)" style="padding:0.25rem 0.55rem;font-size:0.85rem;" title="Zoom out">−</button>
+      <button type="button" class="btn-select" onclick="updateEditZoom(0.2)" style="padding:0.25rem 0.55rem;font-size:0.85rem;" title="Zoom in">+</button>
+      <button type="button" class="btn-select" onclick="fitEditModeToScreen()" style="padding:0.25rem 0.65rem;font-size:0.75rem;border-color:#38bdf8;color:#38bdf8;" title="Fit image to screen">⊡ Fit</button>
+      <button type="button" class="btn-select" onclick="exitEditMode()" style="padding:0.3rem 0.8rem;font-size:0.82rem;border-color:#fb923c;color:#fb923c;font-weight:bold;">✕ Exit Edit Mode</button>
+    </div>
+  </div>
+
+  <!-- Main Edit Workspace -->
+  <div style="display:flex;flex:1;overflow:hidden;">
+
+    <!-- Canvas Area (left, ~70%) -->
+    <div id="em-canvas-container" style="flex:1;position:relative;overflow:hidden;background:#030712;cursor:crosshair;">
+      <!-- Board image rendered on this canvas -->
+      <canvas id="em-board-canvas" style="position:absolute;top:0;left:0;image-rendering:pixelated;"></canvas>
+      <!-- Coordinate readout -->
+      <div id="em-coord-display" style="position:absolute;bottom:0.6rem;left:0.7rem;font-size:0.7rem;font-family:monospace;background:rgba(0,0,0,0.7);color:#94a3b8;padding:0.25rem 0.6rem;border-radius:6px;pointer-events:none;">X:0 Y:0 px</div>
+      <!-- Scale ratio display -->
+      <div id="em-scale-display" style="position:absolute;bottom:0.6rem;left:50%;transform:translateX(-50%);font-size:0.7rem;font-family:monospace;background:rgba(0,0,0,0.7);color:#a78bfa;padding:0.25rem 0.6rem;border-radius:6px;pointer-events:none;display:none;">Scale: — px/mm</div>
+      <!-- Active tool cursor label -->
+      <div id="em-tool-cursor-label" style="position:absolute;top:0.6rem;left:0.7rem;font-size:0.7rem;background:rgba(251,146,60,0.85);color:#fff;padding:0.2rem 0.55rem;border-radius:6px;pointer-events:none;font-weight:bold;">✋ Grip/Pan</div>
+    </div>
+
+    <!-- Tools Sidebar (right, ~30%) -->
+    <div style="width:290px;flex-shrink:0;background:#0d1526;border-left:1px solid #1e293b;display:flex;flex-direction:column;overflow-y:auto;">
+
+      <!-- Active Tool Selector -->
+      <div style="padding:0.85rem 0.9rem;border-bottom:1px solid #1e293b;">
+        <div style="font-size:0.7rem;color:#64748b;font-weight:bold;letter-spacing:0.08em;margin-bottom:0.55rem;">ACTIVE TOOL</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;">
+          <button id="em-tool-grip" type="button" onclick="setEditTool('grip')" class="btn-select em-tool-btn active-tool" style="font-size:0.78rem;padding:0.45rem 0.5rem;text-align:left;">✋ Grip/Pan</button>
+          <button id="em-tool-scale" type="button" onclick="setEditTool('scale')" class="btn-select em-tool-btn" style="font-size:0.78rem;padding:0.45rem 0.5rem;text-align:left;">🔍 Scale</button>
+          <button id="em-tool-fiducial" type="button" onclick="setEditTool('fiducial')" class="btn-select em-tool-btn" style="font-size:0.78rem;padding:0.45rem 0.5rem;text-align:left;">🎯 Fiducial</button>
+          <button id="em-tool-ic" type="button" onclick="setEditTool('ic_chip')" class="btn-select em-tool-btn" style="font-size:0.78rem;padding:0.45rem 0.5rem;text-align:left;">🔲 IC/Chip</button>
+          <button id="em-tool-connector" type="button" onclick="setEditTool('connector')" class="btn-select em-tool-btn" style="font-size:0.78rem;padding:0.45rem 0.5rem;text-align:left;">🔌 Connector</button>
+          <button id="em-tool-marking" type="button" onclick="setEditTool('marking')" class="btn-select em-tool-btn" style="font-size:0.78rem;padding:0.45rem 0.5rem;text-align:left;">🏷️ Marking</button>
+        </div>
+        <div id="em-tool-hint" style="font-size:0.68rem;color:#475569;margin-top:0.5rem;line-height:1.4;">
+          Drag the canvas to pan the view.
+        </div>
+      </div>
+
+      <!-- Scale Tool Panel -->
+      <div id="em-scale-panel" style="display:none;padding:0.85rem 0.9rem;border-bottom:1px solid #1e293b;background:rgba(167,139,250,0.05);">
+        <div style="font-size:0.7rem;color:#a78bfa;font-weight:bold;letter-spacing:0.08em;margin-bottom:0.55rem;">🔍 SCALE CALIBRATION</div>
+        <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.55rem;line-height:1.45;">Draw a line on a known feature (e.g. board edge, ruler mark), then enter the real dimension.</div>
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+          <input id="em-scale-mm-input" type="number" class="login-input" placeholder="mm" step="0.1" min="0.1" style="width:80px;padding:0.35rem;font-size:0.82rem;">
+          <label style="font-size:0.75rem;color:#94a3b8;">mm real length</label>
+        </div>
+        <button type="button" class="btn-select" onclick="applyScaleCalibration()" style="width:100%;font-size:0.78rem;padding:0.4rem;border-color:#a78bfa;color:#a78bfa;">Apply Scale</button>
+        <div id="em-scale-result" style="font-size:0.72rem;color:#34d399;margin-top:0.45rem;font-family:monospace;"></div>
+      </div>
+
+      <!-- Tolerance Slider -->
+      <div style="padding:0.85rem 0.9rem;border-bottom:1px solid #1e293b;">
+        <div style="font-size:0.7rem;color:#64748b;font-weight:bold;letter-spacing:0.08em;margin-bottom:0.55rem;">📐 TOLERANCE</div>
+        <input id="em-tolerance-slider" type="range" min="0.05" max="0.5" step="0.05" value="0.1"
+          oninput="document.getElementById('em-tolerance-val').textContent = '±'+parseFloat(this.value).toFixed(2)+' mm'"
+          style="width:100%;accent-color:#38bdf8;">
+        <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:#475569;margin-top:0.2rem;">
+          <span>±0.05mm</span>
+          <strong id="em-tolerance-val" style="color:#38bdf8;">±0.10 mm</strong>
+          <span>±0.50mm</span>
+        </div>
+      </div>
+
+      <!-- Landmark List -->
+      <div style="padding:0.85rem 0.9rem;flex:1;display:flex;flex-direction:column;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.55rem;">
+          <div style="font-size:0.7rem;color:#64748b;font-weight:bold;letter-spacing:0.08em;">📋 LANDMARKS</div>
+          <span id="em-lm-count" style="font-size:0.72rem;color:#38bdf8;font-weight:bold;">0</span>
+        </div>
+        <div id="em-landmark-list" style="flex:1;overflow-y:auto;font-size:0.73rem;">
+          <div style="color:#475569;text-align:center;padding:1rem;">No landmarks yet.</div>
+        </div>
+      </div>
+
+      <!-- Save / Exit Buttons -->
+      <div style="padding:0.85rem 0.9rem;border-top:1px solid #1e293b;display:flex;flex-direction:column;gap:0.5rem;">
+        <button type="button" class="btn-primary" onclick="saveAndExitEditMode()" style="font-size:0.85rem;padding:0.55rem;background:#059669;border-color:#059669;font-weight:bold;">
+          💾 Save Profile &amp; Exit
+        </button>
+        <button type="button" class="btn-select" onclick="exitEditMode()" style="font-size:0.8rem;padding:0.45rem;border-color:#fb923c;color:#fb923c;">
+          ✕ Exit Without Saving
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ROI Label Prompt for Edit Mode (inline quick-label) -->
+<div id="modal-em-roi-label" style="display:none;position:fixed;z-index:2300;background:#0f172a;border:1px solid #fb923c;border-radius:10px;padding:0.85rem 1rem;box-shadow:0 8px 30px rgba(0,0,0,0.8);min-width:220px;">
+  <div style="font-size:0.8rem;color:#fb923c;font-weight:bold;margin-bottom:0.6rem;">🏷️ Label this ROI</div>
+  <input id="em-roi-id-input" type="text" class="login-input" placeholder="e.g. FID_3, U2, J4" style="width:100%;font-size:0.82rem;padding:0.4rem;margin-bottom:0.5rem;">
+  <div style="display:flex;gap:0.5rem;">
+    <button type="button" class="btn-primary" onclick="confirmEditModeROI()" style="flex:1;font-size:0.78rem;padding:0.35rem;background:#7c3aed;border-color:#7c3aed;">✅ Add</button>
+    <button type="button" class="btn-select" onclick="cancelEditModeROI()" style="font-size:0.78rem;padding:0.35rem 0.6rem;">✕</button>
+  </div>
+</div>
+
+<div id="modal-fai-wizard" class="modal-overlay">
+  <div class="modal-content" style="max-width:920px;max-height:90vh;overflow-y:auto;padding:1.5rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;">
+      <div>
+        <h3 style="margin:0;color:#38bdf8;" id="fai-modal-header">SMT First & Last Article Verification (5Q4-045 V5)</h3>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;display:none;"></div>
+      </div>
+      <button class="btn-select" onclick="closeFaiWizard()" style="padding:0.25rem 0.6rem;">✕</button>
+    </div>
+
+    <!-- Wizard Steps Navigation -->
+    <div style="display:flex;gap:0.4rem;margin-bottom:1.25rem;overflow-x:auto;padding-bottom:0.4rem;" id="fai-wizard-nav">
+      <button type="button" class="btn-select active" data-step="1" onclick="switchFaiStep(1)" style="flex:1;font-size:0.75rem;padding:0.5rem 0.4rem;">1. Production Info</button>
+      <button type="button" class="btn-select" data-step="2" onclick="switchFaiStep(2)" style="flex:1;font-size:0.75rem;padding:0.5rem 0.4rem;">2. Paste & Stencil</button>
+      <button type="button" class="btn-select" data-step="3" onclick="switchFaiStep(3)" style="flex:1;font-size:0.75rem;padding:0.5rem 0.4rem;">3. Critical Parts</button>
+      <button type="button" class="btn-select" data-step="4" onclick="switchFaiStep(4)" style="flex:1;font-size:0.75rem;padding:0.5rem 0.4rem;">4. 24 SMT Checks</button>
+      <button type="button" class="btn-select" data-step="5" onclick="switchFaiStep(5)" style="flex:1;font-size:0.75rem;padding:0.5rem 0.4rem;">5. Sign-off & Release</button>
+    </div>
+
+    <form id="form-fai-wizard" onsubmit="event.preventDefault(); submitFaiWizard();">
+      <!-- STEP 1: Basic Production & Lot Info -->
+      <div id="fai-step-1" class="fai-step-pane">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Inspection Type:</span><span class="lang-zh">首/末件:</span><span class="lang-th">Inspection Type:</span></label>
+            <select id="fai-inp-type" class="login-input" style="width:100%;margin-top:0.3rem;">
+              <option value="FIRST_ARTICLE">首件 (First Article / FAI)</option>
+              <option value="LAST_ARTICLE">末件 (Last Article / LAI)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Process Mode:</span><span class="lang-zh">製程類型:</span><span class="lang-th">Process Mode:</span></label>
+            <select id="fai-inp-process" class="login-input" style="width:100%;margin-top:0.3rem;">
+              <option value="SOLDER_PASTE">錫膏製程 (Solder Paste Process)</option>
+              <option value="RED_GLUE">紅膠製程 (Red Glue Process)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Production Line:</span><span class="lang-zh">線別:</span><span class="lang-th">Production Line:</span></label>
+            <select id="fai-inp-line" class="login-input" style="width:100%;margin-top:0.3rem;">
+              <option value="SMT Line T1">SMT Line T1</option>
+              <option value="SMT Line T2">SMT Line T2</option>
+              <option value="SMT Line T3">SMT Line T3</option>
+              <option value="SMT Line T4">SMT Line T4</option>
+              <option value="SMT Line T5">SMT Line T5</option>
+              <option value="SMT Line P1">SMT Line P1</option>
+              <option value="SMT Line P2">SMT Line P2</option>
+              <option value="SMT Line P5">SMT Line P5</option>
+              <option value="SMT Line P6">SMT Line P6</option>
+              <option value="SMT Line P7">SMT Line P7</option>
+              <option value="SMT Line P8">SMT Line P8</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Work Order:</span><span class="lang-zh">工令:</span><span class="lang-th">Work Order:</span></label>
+            <input type="text" id="fai-inp-wo" class="login-input" placeholder="e.g. WO-20260907-001" required style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Product Model:</span><span class="lang-zh">機種:</span><span class="lang-th">Product Model:</span></label>
+            <input type="text" id="fai-inp-model" class="login-input" placeholder="e.g. PRX-8800-V2" required style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Customer:</span><span class="lang-zh">客戶:</span><span class="lang-th">Customer:</span></label>
+            <input type="text" id="fai-inp-customer" class="login-input" placeholder="e.g. Customer A" style="width:100%;margin-top:0.3rem;">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Shift:</span><span class="lang-zh">班別:</span><span class="lang-th">Shift:</span></label>
+            <select id="fai-inp-shift" class="login-input" style="width:100%;margin-top:0.3rem;">
+              <option value="Day Shift">白班 (Day Shift)</option>
+              <option value="Night Shift">夜班 (Night Shift)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);">Green / HF:</label>
+            <select id="fai-inp-green" class="login-input" style="width:100%;margin-top:0.3rem;">
+              <option value="Green/HF">Green / HF (無鹵)</option>
+              <option value="Standard">Standard</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Lot Qty:</span><span class="lang-zh">批量:</span><span class="lang-th">Lot Qty:</span></label>
+            <input type="number" id="fai-inp-lot" class="login-input" style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Sampling Qty:</span><span class="lang-zh">抽檢數:</span><span class="lang-th">Sampling Qty:</span></label>
+            <input type="number" id="fai-inp-sample" class="login-input" style="width:100%;margin-top:0.3rem;">
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Stencil, Solder Paste & 6-Point Thickness -->
+      <div id="fai-step-2" class="fai-step-pane" style="display:none;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">PCB P/N:</span><span class="lang-zh">料號:</span><span class="lang-th">PCB P/N:</span></label>
+            <input type="text" id="fai-inp-pcb-pn" class="login-input" placeholder="e.g. 715G9988-P01" style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">PCB Date Code:</span><span class="lang-zh">週期:</span><span class="lang-th">PCB Date Code:</span></label>
+            <input type="text" id="fai-inp-pcb-date" class="login-input" placeholder="e.g. 2635" style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);">PDM BOM Version:</label>
+            <input type="text" id="fai-inp-bom-ver" class="login-input" placeholder="e.g. V2.3" style="width:100%;margin-top:0.3rem;">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Solder Paste Brand:</span><span class="lang-zh">錫膏品牌:</span><span class="lang-th">Solder Paste Brand:</span></label>
+            <input type="text" id="fai-inp-paste-brand" class="login-input" style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">First Article Run Time:</span><span class="lang-zh">生產時間:</span><span class="lang-th">First Article Run Time:</span></label>
+            <input type="time" id="fai-inp-fa-time" class="login-input" style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Stencil Thickness:</span><span class="lang-zh">鋼板厚度 mm:</span><span class="lang-th">Stencil Thickness:</span></label>
+            <input type="text" id="fai-inp-stencil-thk" class="login-input" style="width:100%;margin-top:0.3rem;">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Stencil No.:</span><span class="lang-zh">鋼網編號:</span><span class="lang-th">Stencil No.:</span></label>
+            <input type="text" id="fai-inp-stencil-no" class="login-input" placeholder="e.g. ST-T1-8890" style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Stencil SN:</span><span class="lang-zh">鋼網SN:</span><span class="lang-th">Stencil SN:</span></label>
+            <input type="text" id="fai-inp-stencil-sn" class="login-input" placeholder="e.g. SN-2026-99" style="width:100%;margin-top:0.3rem;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-muted);"><span class="lang-en">Paste Thickness Range:</span><span class="lang-zh">規格 mm:</span><span class="lang-th">Paste Thickness Range:</span></label>
+            <input type="text" id="fai-inp-paste-spec" class="login-input" style="width:100%;margin-top:0.3rem;">
+          </div>
+        </div>
+
+        <!-- 6-Point Thickness Grid -->
+        <div style="background:rgba(15,23,42,0.8);border:1px solid var(--border-color);border-radius:10px;padding:1rem;margin-bottom:1rem;">
+          <div style="font-size:0.85rem;font-weight:bold;color:var(--accent-cyan);margin-bottom:0.75rem;">
+            📐 6-Point Measured Solder Paste Thickness (錫膏厚度 6 點測量值 mm):
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0.75rem;">
+            <div><label style="font-size:0.72rem;color:var(--text-muted);">Point 1</label><input type="number" step="0.001" id="fai-pt-1" class="login-input" style="width:100%;padding:0.4rem;"></div>
+            <div><label style="font-size:0.72rem;color:var(--text-muted);">Point 2</label><input type="number" step="0.001" id="fai-pt-2" class="login-input" style="width:100%;padding:0.4rem;"></div>
+            <div><label style="font-size:0.72rem;color:var(--text-muted);">Point 3</label><input type="number" step="0.001" id="fai-pt-3" class="login-input" style="width:100%;padding:0.4rem;"></div>
+            <div><label style="font-size:0.72rem;color:var(--text-muted);">Point 4</label><input type="number" step="0.001" id="fai-pt-4" class="login-input" style="width:100%;padding:0.4rem;"></div>
+            <div><label style="font-size:0.72rem;color:var(--text-muted);">Point 5</label><input type="number" step="0.001" id="fai-pt-5" class="login-input" style="width:100%;padding:0.4rem;"></div>
+            <div><label style="font-size:0.72rem;color:var(--text-muted);">Point 6</label><input type="number" step="0.001" id="fai-pt-6" class="login-input" style="width:100%;padding:0.4rem;"></div>
+          </div>
+        </div>
+
+        <!-- Engineering Changes -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.75rem;">
+          <div><label style="font-size:0.75rem;color:var(--text-muted);"><span class="lang-en">Engineering Change Notes:</span><span class="lang-zh">工程變更注意事項:</span><span class="lang-th">Engineering Change Notes:</span></label><input type="text" id="fai-inp-eng-notes" class="login-input" placeholder="e.g. R12 updated per ECN-5541" style="width:100%;margin-top:0.2rem;"></div>
+          <div><label style="font-size:0.75rem;color:var(--text-muted);"><span class="lang-en">ECN / MN Requirements:</span><span class="lang-zh">ECN/MN 要求:</span><span class="lang-th">ECN / MN Requirements:</span></label><input type="text" id="fai-inp-ecn" class="login-input" placeholder="e.g. ECN-5541 confirmed" style="width:100%;margin-top:0.2rem;"></div>
+          <div><label style="font-size:0.75rem;color:var(--text-muted);"><span class="lang-en">Customer Email Requirements:</span><span class="lang-zh">客戶通知要求:</span><span class="lang-th">Customer Email Requirements:</span></label><input type="text" id="fai-inp-cust-email" class="login-input" placeholder="e.g. QA approved via email" style="width:100%;margin-top:0.2rem;"></div>
+        </div>
+      </div>
+
+      <!-- STEP 3: Critical Components Matrix (16 Rows) -->
+      <div id="fai-step-3" class="fai-step-pane" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+          <div style="font-size:0.85rem;color:var(--text-muted);display:none;"><span class="lang-en">Verify up to 16 critical components:</span><span class="lang-zh">驗證最多16個重要零件:</span></div>
+        </div>
+        
+        <!-- Active Golden Reference Info Card (Linked to Master DB) -->
+        <div id="fai-active-master-card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;padding:0.6rem 0.9rem;background:rgba(15,23,42,0.9);border:1px solid rgba(56,189,248,0.3);border-radius:8px;margin-bottom:0.75rem;">
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <span style="font-size:1.2rem;">🏆</span>
+            <div>
+              <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Active Golden Master Standard</div>
+              <div style="font-size:0.9rem;font-weight:700;color:var(--accent-cyan);">
+                Model: <span id="fai-step3-master-model">MK2</span> <span style="font-size:0.75rem;color:var(--text-muted);">| PCB P/N:</span> <span id="fai-step3-master-pn" style="color:#f8fafc;">123456789</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+            <span id="fai-step3-master-badge" style="font-size:0.72rem;background:rgba(5,150,105,0.2);color:#34d399;border:1px solid #059669;padding:0.3rem 0.65rem;border-radius:6px;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+              <span>✓ Database Standard Active</span> <span id="fai-step3-master-lm-count" style="color:#fff;">(9 Landmarks)</span>
+            </span>
+            <button type="button" class="btn-select" onclick="openMasterDatabaseModal()" style="font-size:0.72rem;padding:0.3rem 0.6rem;border-color:var(--accent-cyan);color:var(--accent-cyan);" title="View or Switch Golden Master in Master DB">
+              <span>🖼️ Master Library ↗</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- SMT AOI & Neural Vision Verification Station -->
+        <div style="margin-bottom:1rem;padding:0.9rem;background:rgba(15,23,42,0.85);border:1px solid rgba(56,189,248,0.35);border-radius:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.75rem;border-bottom:1px solid rgba(51,65,85,0.6);padding-bottom:0.6rem;">
+
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+              <button type="button" class="btn-primary" onclick="openFiducialCamera()" style="font-size:0.75rem;padding:0.45rem 0.85rem;background:#0284c7;">
+                <span>📸 Launch Camera</span>
+              </button>
+              <button type="button" class="btn-select" onclick="document.getElementById('test-file-input').click()" style="font-size:0.75rem;padding:0.45rem 0.8rem;">
+                <span>📁 Upload Test Board</span>
+              </button>
+              <button type="button" class="btn-select" onclick="testNormalBoardDemo()" style="font-size:0.75rem;padding:0.45rem 0.8rem;border-color:#34d399;color:#34d399;" title="Test normal tablet capture (Passed)">
+                <span>🧪 Test Normal (PASS)</span>
+              </button>
+              <button type="button" class="btn-select" onclick="testDefectBoardDemo()" style="font-size:0.75rem;padding:0.45rem 0.8rem;border-color:#ef4444;color:#ef4444;" title="Test board with SMT component displacement & flipped polarity">
+                <span>⚠️ Test Defect (FAIL)</span>
+              </button>
+              <input type="file" id="test-file-input" accept="image/*" style="display:none;" onchange="handleTestFileUpload(this)">
+            </div>
+          </div>
+
+          <!-- AOI Side-by-Side Comparison Display -->
+          <div id="pcba-photo-preview-container" style="display:block;margin-top:0.75rem;">
+            
+            <!-- Metrics & Status Banner -->
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;padding:0.75rem 1rem;background:#0b0f19;border-radius:8px;border:1px solid #334155;margin-bottom:0.75rem;">
+              <div style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;">
+                <div>
+                  <div style="font-size:0.68rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">AOI Similarity Score</div>
+                  <div id="aoi-similarity-score" style="font-size:1.6rem;font-weight:800;color:#34d399;line-height:1.2;">--%</div>
+                </div>
+                <div style="height:36px;width:1px;background:#334155;"></div>
+                <div>
+                  <div style="font-size:0.68rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Landmark Alignment</div>
+                  <div id="aoi-status-badge" style="font-size:0.85rem;font-weight:bold;color:#38bdf8;">Ready</div>
+                  <div id="aoi-details-msg" style="font-size:0.7rem;color:#94a3b8;">Awaiting test capture</div>
+                </div>
+                <div style="height:36px;width:1px;background:#334155;"></div>
+                <div>
+                  <div style="font-size:0.68rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">YOLO Neural Polarity</div>
+                  <div id="yolo-status-badge" style="font-size:0.85rem;font-weight:bold;color:#34d399;">Standby</div>
+                  <div id="yolo-details-msg" style="font-size:0.7rem;color:#94a3b8;">Ultralytics Cloud YOLO Ready</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:0.5rem;">
+                <button type="button" id="btn-rerun-aoi" class="btn-select" onclick="reRunAOIComparison()" style="font-size:0.75rem;padding:0.35rem 0.75rem;">
+                  🔄 Re-run AOI Analysis
+                </button>
+              </div>
+            </div>
+
+            <!-- Two Boards Side-by-Side: Current vs Reference -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:1rem;">
+              
+              <!-- LEFT: Test Board (Captured) with YOLO & Landmark Overlays -->
+              <div style="background:#0f172a;border:1px solid #38bdf8;border-radius:8px;padding:0.65rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem;">
+                  <span style="font-size:0.8rem;font-weight:bold;color:#38bdf8;">📱 Test Board (Live Alignment & Polarities)</span>
+                  <span id="test-board-status-tag" style="font-size:0.7rem;color:#38bdf8;background:rgba(56,189,248,0.15);padding:0.1rem 0.4rem;border-radius:3px;">Awaiting Input</span>
+                </div>
+                <div style="text-align:center;background:#000;border-radius:6px;overflow:hidden;min-height:160px;display:flex;align-items:center;justify-content:center;position:relative;">
+                  <div id="pcba-test-placeholder" style="padding:2rem 1rem;color:#64748b;font-size:0.75rem;text-align:center;">
+                    <div style="font-size:1.8rem;margin-bottom:0.4rem;">📸</div>
+                    <div>Awaiting test board: Click <strong>"Launch Camera"</strong>, <strong>"Upload Test Board"</strong>, or <strong>"Test Normal"</strong> above.</div>
+                  </div>
+                  <div id="pcba-test-img-wrapper" style="position:relative;display:none;">
+                    <img id="pcba-photo-img" style="max-height:210px;max-width:100%;display:block;cursor:pointer;" onclick="openImageLightbox(this.src)" alt="Captured Test PCBA">
+                    <canvas id="pcba-overlay-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+                  </div>
+                </div>
+                <div style="margin-top:0.4rem;display:flex;gap:0.6rem;font-size:0.68rem;color:#94a3b8;align-items:center;justify-content:center;flex-wrap:wrap;">
+                  <span>🎯 Cyan: Fiducials</span>
+                  <span>🔲 Green: IC Pin 1</span>
+                  <span>🔌 Orange: Connectors</span>
+                  <span>🏷️ Magenta: Markings</span>
+                </div>
+              </div>
+
+              <!-- RIGHT: Reference Board (Golden Master with Landmark Anchors) -->
+              <div id="pcba-photo-ref-container" style="background:#0f172a;border:1px solid #34d399;border-radius:8px;padding:0.65rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem;">
+                  <span style="font-size:0.8rem;font-weight:bold;color:#34d399;">🏆 Golden Master Reference (Landmarks Setup)</span>
+                  <span id="ref-source-tag" style="font-size:0.7rem;color:#34d399;background:rgba(52,211,153,0.15);padding:0.1rem 0.4rem;border-radius:3px;">Master Landmarks Anchor</span>
+                </div>
+                <div style="text-align:center;background:#000;border-radius:6px;overflow:hidden;min-height:160px;display:flex;align-items:center;justify-content:center;">
+                  <div style="position:relative;display:inline-block;">
+                    <img id="pcba-photo-ref-img" style="max-height:210px;max-width:100%;display:block;cursor:pointer;" onclick="openImageLightbox(this.src)" alt="Reference PCBA">
+                    <canvas id="pcba-ref-overlay-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+                  </div>
+                </div>
+                <div style="margin-top:0.4rem;font-size:0.7rem;color:#94a3b8;text-align:center;">
+                  Reference Source: <span id="aoi-ref-details" style="color:#e2e8f0;font-weight:bold;">Master Standard Setup</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Intelligent Landmark Inspection Matrix Table -->
+            <div id="landmark-matrix-container" style="margin-top:0.75rem;padding:0.65rem 0.85rem;background:#0b0f19;border-radius:8px;border:1px solid #1e293b;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                <div style="font-size:0.78rem;font-weight:bold;color:#38bdf8;display:flex;align-items:center;gap:0.4rem;">
+                  <span>🎯 AI Landmark Automatic Positioning & Verification Table</span>
+                  <span id="landmark-count-badge" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;font-size:0.68rem;padding:0.1rem 0.4rem;border-radius:4px;">0 Landmarks</span>
+                </div>
+                <div style="font-size:0.7rem;color:#94a3b8;">
+                  Sub-pixel threshold: ±0.05mm (3.5px) | Polarity Verification: Active
+                </div>
+              </div>
+              <div style="max-height:160px;overflow-y:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.72rem;text-align:left;">
+                  <thead>
+                    <tr style="border-bottom:1px solid #334155;color:#94a3b8;">
+                      <th style="padding:0.35rem;">Type</th>
+                      <th style="padding:0.35rem;">Landmark Identifier</th>
+                      <th style="padding:0.35rem;">Master Pos</th>
+                      <th style="padding:0.35rem;">Test Pos</th>
+                      <th style="padding:0.35rem;">Offset (ΔX, ΔY)</th>
+                      <th style="padding:0.35rem;">Orientation / Polarity</th>
+                      <th style="padding:0.35rem;">Match %</th>
+                      <th style="padding:0.35rem;">Verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody id="landmark-matrix-body">
+                    <tr><td colspan="8" style="padding:0.75rem;text-align:center;color:#64748b;">No landmark analysis executed yet. Launch camera or load master to run.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- YOLO Detected Components Matrix Badges -->
+            <div id="yolo-components-container" style="margin-top:0.75rem;padding:0.65rem 0.85rem;background:#0b0f19;border-radius:8px;border:1px solid #1e293b;">
+              <div style="font-size:0.75rem;font-weight:bold;color:#94a3b8;margin-bottom:0.4rem;">Neural Network Detected Component Polarities:</div>
+              <div id="yolo-components-badges" style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+                <!-- dynamic component badges -->
+              </div>
+            </div>
+
+            <input type="hidden" id="fai-inp-pcba-photo">
+          </div>
+
+        </div>
+        <div style="max-height:360px;overflow-y:auto;background:rgba(15,23,42,0.8);border:1px solid var(--border-color);border-radius:10px;padding:0.5rem;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-color);color:var(--text-muted);text-align:left;">
+                <th style="padding:0.4rem;width:35px;">#</th>
+                <th style="padding:0.4rem;"><span class="lang-en">Critical Component / Pos</span><span class="lang-zh">重要零件</span></th>
+                <th style="padding:0.4rem;"><span class="lang-en">Specification</span><span class="lang-zh">規格</span></th>
+                <th style="padding:0.4rem;"><span class="lang-en">Manufacturer</span><span class="lang-zh">廠商</span></th>
+                <th style="padding:0.4rem;width:105px;"><span class="lang-en">Polarity</span><span class="lang-zh">極性</span></th>
+                <th style="padding:0.4rem;width:115px;text-align:center;"><span class="lang-en">Location Photo</span><span class="lang-zh">位置照片</span></th>
+              </tr>
+            </thead>
+            <tbody id="fai-critical-comp-body">
+              <!-- Dynamically rendered 5 rows (max 16) -->
+            </tbody>
+          </table>
+          <div style="padding: 0.5rem; text-align: center;">
+            <button type="button" class="btn-select" onclick="addFaiCriticalComponentRow()" id="btn-add-fai-comp" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; color: #38bdf8; font-weight: bold;">
+              + Add Component Row
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 4: 24 SMT Process Inspection Checkpoints -->
+      <div id="fai-step-4" class="fai-step-pane" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+          <div style="font-size:0.85rem;color:var(--text-muted);"><span class="lang-en">Standard 24 SMT process checkpoints (5Q4-045 V5):</span><span class="lang-zh">標準24項SMT製程檢查點 (5Q4-045 V5):</span></div>
+
+        </div>
+        <div id="fai-checkpoints-container" style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:0.75rem;">
+          <!-- Dynamically loaded 24 items -->
+        </div>
+      </div>
+
+      <!-- STEP 5: Sign-off & Quality Release Gate -->
+      <div id="fai-step-5" class="fai-step-pane" style="display:none;">
+        <div style="background:rgba(15,23,42,0.8);border:1px solid var(--border-color);border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;margin-bottom:1rem;">
+            <div style="font-weight:bold;font-size:1.1rem;color:#fff;">Quality Release Gate Evaluation</div>
+            <div id="fai-gate-badge" style="font-size:0.85rem;font-weight:bold;padding:0.3rem 0.8rem;border-radius:6px;background:rgba(52,211,153,0.2);color:#34d399;border:1px solid rgba(52,211,153,0.4);">
+              ✓ READY FOR RELEASE
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;font-size:0.85rem;">
+            <div><span style="color:var(--text-muted);">Total Checked:</span> <b id="fai-summary-total">24 Items</b></div>
+            <div><span style="color:var(--text-muted);">Passed:</span> <b style="color:#34d399;" id="fai-summary-pass">24</b></div>
+            <div><span style="color:var(--text-muted);">Defects / NG:</span> <b style="color:#ef4444;" id="fai-summary-ng">0</b></div>
+            <div><span style="color:var(--text-muted);">Critical Parts:</span> <b style="color:#38bdf8;" id="fai-summary-parts">16 Verified</b></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.5rem;">
+          <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:10px;padding:1rem;">
+            <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.4rem;">QC Inspector (檢驗員 / ผู้ตรวจสอบ):</label>
+            <input type="text" id="fai-inp-auditor" class="login-input" required style="width:100%;font-weight:bold;color:#38bdf8;">
+          </div>
+          <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:10px;padding:1rem;">
+            <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.4rem;">Verifier / Approver (審核人 / ผู้อนุมัติ):</label>
+            <input type="text" id="fai-inp-verifier" class="login-input" value="" required style="width:100%;font-weight:bold;color:#34d399;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Wizard Navigation Controls (Prev, Next, Submit) -->
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border-color);padding-top:1rem;margin-top:1rem;">
+        <button type="button" class="btn-select" id="btn-fai-prev" onclick="prevFaiStep()" style="visibility:hidden;">← Previous Step</button>
+        <div style="display:flex;gap:0.75rem;">
+          <button type="button" class="btn-select" onclick="closeFaiWizard()">Cancel</button>
+          <button type="button" class="btn-primary" id="btn-fai-next" onclick="nextFaiStep()">Next Step →</button>
+          <button type="submit" class="btn-primary" id="btn-fai-submit" style="display:none;background:#10b981;border-color:#059669;">
+            💾 Submit & Release Article (發布)
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Image Lightbox Preview Modal -->
+<div id="image-lightbox-modal" class="modal-overlay" onclick="closeImageLightbox()">
+  <div class="modal-content" style="max-width:88vw;max-height:88vh;background:rgba(15,23,42,0.95);padding:1rem;border:1px solid var(--border-color);border-radius:12px;display:flex;flex-direction:column;align-items:center;position:relative;" onclick="event.stopPropagation()">
+    <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+      <div style="font-size:0.85rem;color:#38bdf8;font-weight:bold;" id="image-lightbox-title">📷 Photo Evidence Preview</div>
+      <button type="button" class="btn-select" onclick="closeImageLightbox()" style="padding:0.25rem 0.6rem;font-size:0.85rem;">✕ Close</button>
+    </div>
+    <img id="image-lightbox-img" src="" style="max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px;border:1px solid #334155;">
+  </div>
+</div>
+
+<div id="telegram-toast" style="position:fixed;bottom:70px;right:20px;z-index:200;display:none;background:#1e293b;border:1px solid #3b82f6;border-radius:12px;padding:1rem 1.25rem;box-shadow:0 10px 25px rgba(0,0,0,0.6);width:340px;"><div style="display:flex;align-items:center;gap:0.6rem;color:#60a5fa;font-weight:bold;margin-bottom:0.4rem;"><span>TELEGRAM IPQC BOT</span><span style="font-size:0.7rem;background:#ef4444;color:#fff;padding:0.1rem 0.4rem;border-radius:4px;">ALERT</span></div><div id="toast-body" style="font-size:0.85rem;color:#e2e8f0;line-height:1.4;"></div></div>
+<script src="js/translations.js?v=12"></script>
+<script src="js/checklist_data.js?v=12"></script>
+<script src="js/app.js?v=45"></script>
+<script>
+  window.quickLogin = function(username, password) { var uEl=document.getElementById('login-username'); var pEl=document.getElementById('login-password'); if(uEl)uEl.value=username; if(pEl)pEl.value=password; if(typeof handleLoginSubmit==='function')handleLoginSubmit(); };
+  function applyPresetNaming(val) { if(!val)return; var presets={'SMT-L1-PRINT-01':{name:'Solder Paste Printer #1',line:'SMT Line T1',area:'SMT Surface Mount Area',proc:'SMT-Printer',seq:2},'SMT-L1-SPI-01':{name:'3D SPI #1',line:'SMT Line T1',area:'SMT Surface Mount Area',proc:'SMT-SPI',seq:3},'SMT-L1-MNT-01':{name:'Chip Mounter #1',line:'SMT Line T1',area:'SMT Surface Mount Area',proc:'SMT-Mounter',seq:4},'SMT-L1-OVEN-01':{name:'Reflow Oven #1',line:'SMT Line T1',area:'SMT Surface Mount Area',proc:'SMT-Reflow',seq:5},'SMT-L1-AOI-01':{name:'AOI #1',line:'SMT Line T1',area:'SMT Surface Mount Area',proc:'SMT-AOI',seq:6},'DIP-L1-INS-01':{name:'Insertion #1',line:'DIP Line DIP1',area:'DIP Through-Hole Area',proc:'DIP-Insertion',seq:7},'DIP-L1-WAVE-01':{name:'Wave Solder #1',line:'DIP Line DIP1',area:'DIP Through-Hole Area',proc:'DIP-Wave',seq:8}}; var p=presets[val]; if(p){document.getElementById('edit-station-code').value=val;document.getElementById('edit-station-name').value=p.name;document.getElementById('edit-station-line').value=p.line;document.getElementById('edit-station-area').value=p.area;document.getElementById('edit-station-process').value=p.proc;document.getElementById('edit-station-seq').value=p.seq;} }
+</script>
+
+  <!-- Fiducial Camera Modal -->
+  <div id="modal-fiducial-camera" class="modal-overlay">
+    <div class="modal-content" style="max-width:800px;background:var(--bg-card);padding:1rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h3 style="margin:0;font-size:1.1rem;color:var(--text-light);">Fiducial-Guided PCBA Capture</h3>
+        <button type="button" class="btn-select" onclick="closeFiducialCamera()" style="padding:0.25rem 0.5rem;">✕ Close</button>
+      </div>
+      <div style="position:relative;width:100%;max-width:640px;margin:0 auto;background:#000;border-radius:8px;overflow:hidden;">
+        <video id="fiducial-video" autoplay playsinline style="width:100%;display:block;"></video>
+        <!-- Overlay Canvas for Fiducial Guides -->
+        <canvas id="fiducial-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+      </div>
+      <div style="text-align:center;margin-top:1rem;">
+        <button type="button" class="btn-primary" onclick="captureFiducialPhoto()" style="padding:0.75rem 2rem;font-size:1rem;border-radius:8px;">📸 Capture PCBA Image</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pre-Master Image Quality Modal -->
+  <div id="modal-image-quality" class="modal-overlay" style="z-index: 2500;">
+    <div class="modal-content" style="max-width:500px;background:#0f172a;border:1px solid #38bdf8;border-radius:12px;padding:1.5rem;text-align:center;">
+      <h3 style="margin:0 0 1rem 0;color:#38bdf8;font-size:1.25rem;">🔍 Analyzing Master Image Quality...</h3>
+      <p id="iq-status-text" style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem;">Please wait while we evaluate the image parameters.</p>
+      
+      <div style="text-align:left;background:#1e293b;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
+        <div style="margin-bottom:0.75rem;display:flex;justify-content:space-between;">
+          <span style="color:#f8fafc;font-size:0.9rem;font-weight:bold;">Lighting (Brightness/Contrast)</span>
+          <span id="iq-score-lighting" style="color:#38bdf8;font-weight:bold;">Analyzing...</span>
+        </div>
+        <div style="margin-bottom:0.75rem;display:flex;justify-content:space-between;">
+          <span style="color:#f8fafc;font-size:0.9rem;font-weight:bold;">Sharpness (Focus Check)</span>
+          <span id="iq-score-sharpness" style="color:#38bdf8;font-weight:bold;">Analyzing...</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:#f8fafc;font-size:0.9rem;font-weight:bold;">Angle / Perspective</span>
+          <span id="iq-score-angle" style="color:#38bdf8;font-weight:bold;">Analyzing...</span>
+        </div>
+      </div>
+
+      <div id="iq-advice-box" style="display:none;background:rgba(239,68,68,0.15);border:1px solid #ef4444;color:#fca5a5;padding:1rem;border-radius:8px;font-size:0.85rem;margin-bottom:1.5rem;text-align:left;">
+        <strong>⚠️ Image Quality Warning:</strong><br>
+        <span id="iq-advice-text"></span>
+      </div>
+
+      <div style="display:flex;gap:1rem;justify-content:center;">
+        <button type="button" class="btn-select" onclick="document.getElementById('modal-image-quality').classList.remove('active')" style="padding:0.6rem 1.5rem;">Cancel</button>
+        <button type="button" id="btn-iq-proceed" class="btn-primary" style="padding:0.6rem 1.5rem;display:none;" onclick="proceedWithMasterImage()">Proceed to Setup</button>
+        <button type="button" id="btn-iq-reupload" class="btn-select" style="padding:0.6rem 1.5rem;border-color:#f59e0b;color:#f59e0b;display:none;" onclick="document.getElementById('modal-image-quality').classList.remove('active'); document.getElementById('master-file-input').click();">Re-upload Photo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Intelligent ROI Classification Modal -->
+  <div id="modal-roi-classify" class="modal-overlay" style="z-index: 2600;">
+    <div class="modal-content" style="max-width:550px;background:#0f172a;border:1px solid #34d399;border-radius:12px;padding:1.5rem;">
+      <h3 style="margin:0 0 1rem 0;color:#34d399;font-size:1.25rem;display:flex;align-items:center;gap:8px;">
+        <span>🤖 Ultralytics YOLO Auto-Classification</span>
+      </h3>
+      
+      <div style="display:flex;gap:1rem;margin-bottom:1.5rem;">
+        <!-- Cropped preview -->
+        <div style="width:120px;height:120px;background:#000;border-radius:8px;border:1px solid #334155;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+          <canvas id="roi-crop-preview" style="max-width:100%;max-height:100%;"></canvas>
+        </div>
+        
+        <div style="flex:1;">
+          <p id="roi-classify-status" style="margin:0 0 0.5rem 0;color:#94a3b8;font-size:0.9rem;">Connecting to Vision API...</p>
+          
+          <div id="roi-classify-results" style="display:none;background:#1e293b;padding:0.75rem;border-radius:8px;border:1px solid #334155;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+              <span style="color:#94a3b8;font-size:0.85rem;">Detected Component:</span>
+              <span id="roi-detected-class" style="color:#34d399;font-weight:bold;font-size:0.9rem;">...</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+              <span style="color:#94a3b8;font-size:0.85rem;">Confidence Score:</span>
+              <span id="roi-detected-conf" style="color:#38bdf8;font-weight:bold;font-size:0.9rem;">...</span>
+            </div>
+            
+            <div style="margin-top:1rem;">
+              <label style="font-size:0.75rem;color:#94a3b8;">Suggested Landmark Type:</label>
+              <select id="roi-suggested-type" class="login-input" style="width:100%;margin-top:0.25rem;padding:0.4rem;">
+                <option value="FIDUCIAL">FIDUCIAL (Optical Alignment)</option>
+                <option value="IC_CHIP">IC_CHIP (Polarity Check)</option>
+                <option value="CONNECTOR">CONNECTOR (Seating Check)</option>
+                <option value="PCB_MARKING">PCB_MARKING (Text OCR)</option>
+              </select>
+            </div>
+            
+            <div style="margin-top:0.75rem;">
+              <label style="font-size:0.75rem;color:#94a3b8;">Landmark ID:</label>
+              <input type="text" id="roi-suggested-id" class="login-input" style="width:100%;margin-top:0.25rem;padding:0.4rem;" value="ROI_1">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:1rem;justify-content:flex-end;">
+        <button type="button" class="btn-select" onclick="cancelROIDraw()" style="padding:0.5rem 1.25rem;">Discard</button>
+        <button type="button" id="btn-confirm-roi" class="btn-primary" style="padding:0.5rem 1.25rem;background:#34d399;border-color:#34d399;color:#0f172a;font-weight:bold;" onclick="confirmROICalibration()" disabled>Confirm ROI</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+

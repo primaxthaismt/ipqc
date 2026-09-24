@@ -1,0 +1,21 @@
+{
+  "name": "Smart IPQC Digital Audit System",
+  "short_name": "Smart IPQC",
+  "description": "QR-Driven Layered Process Audit Mobile Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063823.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063823.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

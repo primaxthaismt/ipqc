@@ -1,0 +1,2 @@
+676: SMT_TEMPLATE_PATH = find_master_file("5Q4-046 IPQC巡回稽核表 IPQC Patrol Audit Checklist V8.xls")
+677: DIP_TEMPLATE_PATH = find_master_file("5Q4-053 IPQC制程查核表IPQC Process Audit Checklist V6.xls")

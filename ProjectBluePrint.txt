@@ -1,0 +1,547 @@
+I reviewed the uploaded IPQC Process Audit Checklist. The checklist is already structured by process area (ESD, Through-Hole Insertion, Wave Soldering, Assembly, etc.), item number, audit requirements, time frequency, and pass/fail criteria. This makes it an excellent candidate for a QR-driven mobile audit platform.
+
+## Vision: Smart IPQC Digital Audit System
+
+### Current Problems
+
+1. Paper-based audit form
+
+   * Auditor must carry paper checklist.
+   * Difficult to trace missed audits.
+   * No real-time escalation.
+   * No station-level analytics.
+
+2. Audit frequency control is weak
+
+   * Auditor may skip station.
+   * No proof of actual audit location.
+
+3. Audit findings not linked to CAPA
+
+   * Findings remain in paper records.
+   * Difficult trend analysis.
+
+---
+
+# Proposed System Architecture
+
+## Technology Stack (Free Tier)
+
+| Layer                        | Technology             |
+| ---------------------------- | ---------------------- |
+| Frontend                     | Next.js                |
+| Mobile UI                    | PWA (Tablet & Mobile)  |
+| Backend                      | Supabase               |
+| Database                     | PostgreSQL (Supabase)  |
+| Authentication               | Supabase Auth          |
+| File Storage                 | Supabase Storage       |
+| Hosting                      | Cloudflare Pages       |
+| Edge Functions               | Cloudflare Workers     |
+| QR Generator                 | Open Source Library    |
+| Dashboard                    | React + Chart.js       |
+| Notification                 | Telegram Bot           |
+| Offline Mode                 | Service Worker         |
+| AI Audit Assistant (Phase 2) | OpenAI API / Local LLM |
+
+Estimated Monthly Cost:
+
+| Component          | Cost |
+| ------------------ | ---- |
+| Supabase Free      | $0   |
+| Cloudflare Pages   | $0   |
+| Cloudflare Workers | $0   |
+| QR Code            | $0   |
+| Telegram Bot       | $0   |
+| Total              | $0   |
+
+---
+
+# System Flow
+
+## 1. Station QR Code
+
+Each station receives unique QR.
+
+Example:
+
+```
+SMT-P4-Printer
+SMT-P4-SPI
+SMT-P4-Mounter
+SMT-P4-Reflow
+SMT-P4-AOI
+DIP-Line1-Insertion
+DIP-Line1-Wave
+DIP-Line1-Assembly
+```
+
+QR Content:
+
+```
+https://audit.company.com/station/SMT-P4-Printer
+```
+
+---
+
+## 2. Auditor Scan
+
+Auditor walks to station.
+
+Using tablet:
+
+```
+Scan QR
+↓
+System identifies station
+↓
+Load station-specific checklist
+↓
+2-minute audit
+↓
+Submit
+```
+
+No manual station selection.
+
+---
+
+# Station Checklist Logic
+
+Instead of 100 questions every audit:
+
+System automatically loads only relevant questions.
+
+---
+
+## Example
+
+### Printer Station
+
+Checklist:
+
+| Item                    |
+| ----------------------- |
+| SOP available           |
+| Solder Paste valid      |
+| Temperature record      |
+| Humidity record         |
+| Stencil cleaning record |
+| ESD compliance          |
+| Material traceability   |
+
+Only 8-10 questions.
+
+---
+
+### SPI Station
+
+Checklist:
+
+| Item                  |
+| --------------------- |
+| Program version       |
+| Golden board verified |
+| GRR status            |
+| Alarm verification    |
+| SPC chart updated     |
+| ESD status            |
+
+---
+
+### Reflow Station
+
+Checklist:
+
+| Item                |
+| ------------------- |
+| Recipe verification |
+| Profile approval    |
+| Conveyor speed      |
+| Nitrogen flow       |
+| Maintenance status  |
+| Oven record         |
+
+---
+
+### AOI Station
+
+Checklist:
+
+| Item                    |
+| ----------------------- |
+| Program version         |
+| False call verification |
+| Golden board approval   |
+| Alarm reaction          |
+| Defect classification   |
+
+---
+
+# Audit Screen
+
+Tablet UI
+
+```
+--------------------------------
+Station: SMT-P4-Reflow
+
+Audit Duration:
+00:00
+
+Checklist 6 Items
+--------------------------------
+
+□ Recipe Match SOP
+
+□ Profile Approved
+
+□ Nitrogen Flow Normal
+
+□ Conveyor Speed OK
+
+□ Maintenance Record Updated
+
+□ ESD Compliance
+
+--------------------------------
+
+Finding
+
+[ Textbox ]
+
+Photo
+
+[Take Photo]
+
+[Submit]
+--------------------------------
+```
+
+Auditor finishes within 2 minutes.
+
+---
+
+# Audit Result
+
+For each item:
+
+| Result |
+| ------ |
+| OK     |
+| NG     |
+| N/A    |
+
+For △ items:
+
+System requests quantity.
+
+Example:
+
+```
+Wrong Component Check
+
+Inspected Qty:
+
+[5]
+
+Result:
+
+OK
+```
+
+Exactly matching your current checklist requirement.
+
+---
+
+# Escalation Logic
+
+If NG selected:
+
+```
+NG
+↓
+Mandatory Photo
+↓
+Mandatory Description
+↓
+Create CAPA
+↓
+Telegram Alert
+```
+
+Notification:
+
+```
+IPQC ALERT
+
+Station:
+SMT-P4-Reflow
+
+Finding:
+Nitrogen Flow Low
+
+Auditor:
+Norman
+
+Time:
+09:34
+
+Photo Attached
+```
+
+---
+
+# Audit Frequency Control
+
+Current form:
+
+```
+08:00
+10:00
+12:00
+15:00
+17:00
+20:00
+```
+
+System converts to schedules.
+
+Example:
+
+| Audit Type | Frequency   |
+| ---------- | ----------- |
+| ESD        | Every 2 hrs |
+| Printer    | Every 4 hrs |
+| SPI        | Every 4 hrs |
+| Reflow     | Every 4 hrs |
+| AOI        | Every 4 hrs |
+
+---
+
+Dashboard shows:
+
+```
+Today's Required Audits
+
+Expected:
+72
+
+Completed:
+65
+
+Missed:
+7
+```
+
+---
+
+# Database Design
+
+## stations
+
+| Field        |
+| ------------ |
+| id           |
+| station_code |
+| station_name |
+| process      |
+| qr_code      |
+
+---
+
+## checklist_master
+
+| Field            |
+| ---------------- |
+| id               |
+| item_no          |
+| item_description |
+| process          |
+| frequency        |
+| mandatory_photo  |
+| requires_qty     |
+
+---
+
+## audit_header
+
+| Field      |
+| ---------- |
+| audit_id   |
+| station_id |
+| auditor    |
+| audit_time |
+| shift      |
+| result     |
+
+---
+
+## audit_detail
+
+| Field        |
+| ------------ |
+| audit_id     |
+| checklist_id |
+| result       |
+| qty          |
+| remark       |
+| photo_url    |
+
+---
+
+## capa
+
+| Field    |
+| -------- |
+| capa_id  |
+| audit_id |
+| owner    |
+| due_date |
+| status   |
+
+---
+
+# Management Dashboard
+
+## Real-Time Factory Map
+
+```
+Printer     ✓
+SPI         ✓
+Mounter     ✓
+Reflow      NG
+AOI         ✓
+Wave        ✓
+Assembly    ✓
+```
+
+Color:
+
+Green = Audit Completed
+
+Yellow = Due
+
+Red = Overdue
+
+---
+
+# Analytics Dashboard
+
+## Top Findings
+
+| Finding      | Count |
+| ------------ | ----- |
+| Missing ESD  | 23    |
+| SOP Missing  | 15    |
+| Traceability | 12    |
+
+---
+
+## Pareto
+
+Top recurring audit issues.
+
+---
+
+## Audit Compliance
+
+```
+Target:
+100%
+
+Actual:
+97.3%
+```
+
+---
+
+# AI Features (Phase 2)
+
+Using audit history:
+
+### AI Trend Analysis
+
+```
+Reflow line P4
+
+Nitrogen Flow NG
+5 times in 14 days
+
+Risk:
+Profile instability
+
+Recommendation:
+Perform PM
+Check N2 regulator
+```
+
+---
+
+# Development Plan
+
+### Phase 1 (2 Weeks)
+
+Foundation
+
+* Supabase setup
+* Authentication
+* QR system
+* Station master
+* Checklist master
+* Audit submission
+
+---
+
+### Phase 2 (2 Weeks)
+
+Audit Execution
+
+* Mobile UI
+* Photo upload
+* Offline mode
+* Dashboard
+
+---
+
+### Phase 3 (2 Weeks)
+
+Management
+
+* CAPA module
+* Telegram notification
+* KPI dashboard
+* Audit compliance
+
+---
+
+### Phase 4 (2 Weeks)
+
+Advanced
+
+* AI analytics
+* Trend prediction
+* Risk scoring
+* PFMEA linkage
+
+---
+
+# Recommended Enhancement for Primax SMT
+
+Rather than digitizing the entire 103-item checklist, split it into station-specific micro-audits:
+
+| Station   | Audit Items |
+| --------- | ----------- |
+| ESD       | 5           |
+| Printer   | 8           |
+| SPI       | 6           |
+| Placement | 8           |
+| Reflow    | 6           |
+| AOI       | 6           |
+| Insertion | 6           |
+| Wave      | 8           |
+| Assembly  | 6           |
+| Packaging | 5           |
+
+This reduces audit time from approximately 20 minutes to less than 2 minutes per station while improving compliance and traceability significantly.
+
+For your SMT/DIP environment, I would also add geolocation validation, QR anti-cheating logic, operator acknowledgment, and automatic PFMEA risk linkage so that repeated audit findings automatically increase occurrence ratings in the PFMEA dashboard. This creates a fully digital IATF 16949-compliant Layered Process Audit/IPQC Audit system.

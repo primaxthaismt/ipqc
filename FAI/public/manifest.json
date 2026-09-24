@@ -1,0 +1,10 @@
+﻿{
+  "name": "Smart IPQC v2 - Efficiency UI",
+  "short_name": "IPQC v2",
+  "description": "Smart IPQC Digital Audit System - Proposal B Efficiency Layout",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "icons": []
+}
