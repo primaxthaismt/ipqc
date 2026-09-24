@@ -127,6 +127,7 @@ function initApp() {
   safeExec(renderQrStickers);
   safeExec(loadAIInsights);
   safeExec(checkUserSession);
+  safeExec(checkEmailPauseStatus);
 
   // Network Status Monitor
   window.addEventListener('online', updateNetworkStatus);
@@ -2224,6 +2225,18 @@ async function autoDispatchMqaAuditReport(auditId, lineName, stationName, workOr
   // STRICT RULE: Only dispatch automated email report when the FULL line patrol is complete
   if (!isLineComplete) return;
 
+  // Check if outbound email delivery is currently paused
+  if (window.isEmailPausedState) {
+    console.log('⏸️ autoDispatchMqaAuditReport skipped: Outbound email sending is currently PAUSED.');
+    showAppToast(
+      '⏸️ MQA Email Skipped (Paused)',
+      `Full line audit for <strong>${lineName}</strong> completed, but automated email was NOT sent because email sending is currently <strong>PAUSED</strong>.`,
+      'warning',
+      { text: '⚙️ Email Config', onClick: openEmailSettingsModal }
+    );
+    return;
+  }
+
   const mqaEmail = getMqaGroupEmail();
   try {
     const res = await apiFetch('/api/reports/audit/email', {
@@ -3195,10 +3208,126 @@ async function handleConfirmSendEmail() {
   }
 }
 
+// ==========================================
+// OUTBOUND EMAIL PAUSE & RESUME CONTROLS
+// ==========================================
+window.isEmailPausedState = false;
+
+function updateEmailPauseUI(isPaused) {
+  window.isEmailPausedState = Boolean(isPaused);
+
+  // 1. Header Button
+  const headerBtn = document.getElementById('btn-header-pause-email');
+  const headerIcon = document.getElementById('header-pause-email-icon');
+  const headerText = document.getElementById('header-pause-email-text');
+  if (headerBtn && headerIcon && headerText) {
+    if (window.isEmailPausedState) {
+      headerIcon.textContent = '⏸️';
+      headerText.textContent = 'Email: PAUSED';
+      headerBtn.style.color = '#fbbf24';
+      headerBtn.style.borderColor = 'rgba(251,191,36,0.5)';
+      headerBtn.style.background = 'rgba(251,191,36,0.1)';
+      headerBtn.title = 'Emails are PAUSED. Click to Resume sending.';
+    } else {
+      headerIcon.textContent = '🟢';
+      headerText.textContent = 'Email: Active';
+      headerBtn.style.color = '#34d399';
+      headerBtn.style.borderColor = 'rgba(52,211,153,0.4)';
+      headerBtn.style.background = 'transparent';
+      headerBtn.title = 'Emails are ACTIVE. Click to Pause sending.';
+    }
+  }
+
+  // 2. Modal Card Controls
+  const modalIcon = document.getElementById('modal-pause-indicator-icon');
+  const modalLabel = document.getElementById('modal-pause-status-label');
+  const modalDesc = document.getElementById('modal-pause-status-desc');
+  const modalBtn = document.getElementById('btn-modal-pause-email');
+  const modalCard = document.getElementById('email-modal-pause-card');
+
+  if (modalIcon && modalLabel && modalDesc && modalBtn) {
+    if (window.isEmailPausedState) {
+      modalIcon.textContent = '⏸️';
+      modalLabel.textContent = 'PAUSED (SUSPENDED)';
+      modalLabel.style.color = '#fbbf24';
+      modalDesc.textContent = 'All outbound emails (MQA line patrol dispatches, CLCA alerts, FAI reports, and tests) are temporarily suspended.';
+      modalBtn.textContent = '▶️ Resume Emails';
+      modalBtn.style.color = '#34d399';
+      modalBtn.style.borderColor = 'rgba(52,211,153,0.6)';
+      modalBtn.style.background = 'rgba(52,211,153,0.12)';
+      if (modalCard) modalCard.style.borderColor = 'rgba(251,191,36,0.4)';
+    } else {
+      modalIcon.textContent = '🟢';
+      modalLabel.textContent = 'ACTIVE';
+      modalLabel.style.color = '#34d399';
+      modalDesc.textContent = 'Automated line audit dispatches, manual emails, and reports are sending normally.';
+      modalBtn.textContent = '⏸️ Pause All Emails';
+      modalBtn.style.color = '#fbbf24';
+      modalBtn.style.borderColor = 'rgba(251,191,36,0.5)';
+      modalBtn.style.background = 'transparent';
+      if (modalCard) modalCard.style.borderColor = 'rgba(52,211,153,0.3)';
+    }
+  }
+}
+window.updateEmailPauseUI = updateEmailPauseUI;
+
+async function checkEmailPauseStatus() {
+  try {
+    const res = await apiFetch('/api/email/pause-status');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data.is_paused === 'boolean') {
+        updateEmailPauseUI(data.is_paused);
+      }
+    }
+  } catch (err) {
+    console.warn('Could not query email pause status:', err);
+  }
+}
+window.checkEmailPauseStatus = checkEmailPauseStatus;
+
+async function toggleEmailPause() {
+  const willPause = !window.isEmailPausedState;
+  const promptMsg = willPause
+    ? '⏸️ Are you sure you want to PAUSE all outbound email sending?\n\n- Automated MQA line patrol dispatches will be held.\n- CLCA / 8D email notifications will not be sent.\n- FAI/LAI report emails will not be sent.\n\nYou can resume email delivery at any time.'
+    : '▶️ Resume outbound email delivery?\n\n- Automated MQA line patrol dispatches will resume.\n- Manual report sending will be re-enabled.';
+
+  if (!confirm(promptMsg)) return;
+
+  // Optimistic UI update
+  updateEmailPauseUI(willPause);
+
+  try {
+    const res = await apiFetch('/api/email/pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paused: willPause })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.status === 'SUCCESS') {
+      updateEmailPauseUI(data.is_paused);
+      showAppToast(
+        data.is_paused ? '⏸️ Email Delivery Paused' : '🟢 Email Delivery Resumed',
+        data.message || (data.is_paused ? 'Outbound email sending has been suspended.' : 'Outbound email sending has resumed.'),
+        data.is_paused ? 'warning' : 'success'
+      );
+    } else {
+      // Revert if API failed
+      updateEmailPauseUI(!willPause);
+      alert(`⚠️ Could not update email pause state: ${data.message || 'Server error'}`);
+    }
+  } catch (err) {
+    updateEmailPauseUI(!willPause);
+    alert(`⚠️ Failed to communicate with server: ${err.message}`);
+  }
+}
+window.toggleEmailPause = toggleEmailPause;
+
 // SMTP Settings
 function openEmailSettingsModal() {
   document.getElementById('modal-email-settings')?.classList.add('active');
   checkEmailStatus();
+  checkEmailPauseStatus();
 }
 
 function closeEmailSettingsModal() {
@@ -3216,6 +3345,9 @@ async function checkEmailStatus() {
     const res = await apiFetch('/api/email/status');
     if (res.ok) {
       const data = await res.json();
+      if (typeof data.is_paused === 'boolean') {
+        updateEmailPauseUI(data.is_paused);
+      }
       if (txt) {
         txt.textContent = data.configured ? `🟢 Active (${data.smtp_user} - Ready)` : '🟡 Unconfigured';
         txt.style.color = data.configured ? '#34d399' : '#facc15';

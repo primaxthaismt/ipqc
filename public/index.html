@@ -56,6 +56,11 @@
         <span>📧</span> Email Config
       </button>
 
+      <!-- Pause / Resume Email Sending Button -->
+      <button id="btn-header-pause-email" class="btn-select" onclick="toggleEmailPause()" style="display: flex; align-items: center; gap: 0.35rem; color: #34d399; border-color: rgba(52,211,153,0.4);" title="Click to Pause or Resume Outbound Email Sending">
+        <span id="header-pause-email-icon">🟢</span> <span id="header-pause-email-text">Email: Active</span>
+      </button>
+
       <select id="select-lang" class="btn-select">
         <option value="zh">繁體 / 简体 (ZH)</option>
         <option value="en">English (EN)</option>
@@ -1408,6 +1413,23 @@
         <button id="btn-close-email-settings-modal" class="btn-select" style="padding: 0.2rem 0.6rem;">✕</button>
       </div>
 
+      <!-- Email Pause / Resume Master Switch Card -->
+      <div id="email-modal-pause-card" style="background: rgba(15,23,42,0.85); padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid rgba(52,211,153,0.3); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: bold; color: #fff;">
+            <span id="modal-pause-indicator-icon">🟢</span>
+            <span>Outbound Email Dispatch:</span>
+            <span id="modal-pause-status-label" style="color: #34d399;">ACTIVE</span>
+          </div>
+          <div id="modal-pause-status-desc" style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem;">
+            Automated line audit dispatches, manual emails, and reports are sending normally.
+          </div>
+        </div>
+        <button id="btn-modal-pause-email" type="button" class="btn-select" onclick="toggleEmailPause()" style="white-space: nowrap; font-weight: bold; padding: 0.4rem 0.85rem; border-color: rgba(251,191,36,0.5); color: #fbbf24; cursor: pointer;">
+          ⏸️ Pause All Emails
+        </button>
+      </div>
+
       <div id="email-settings-status-badge" style="background: rgba(15,23,42,0.6); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between;">
         <div style="font-size: 0.85rem; color: var(--text-muted);">Current Connection Status:</div>
         <div id="email-status-text" style="font-weight: bold; font-size: 0.85rem; color: #facc15;">Checking...</div>
@@ -1506,7 +1528,7 @@
   <!-- JS App Entrypoint -->
   <script src="js/translations.js?v=54"></script>
   <script src="js/checklist_data.js?v=54"></script>
-  <script src="js/app.js?v=56"></script>
+  <script src="js/app.js?v=57"></script>
 
   <script>
     // Inline quickLogin fallback for PWA cache mismatch safety

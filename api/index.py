@@ -402,6 +402,10 @@ class EmailSettingsModel(BaseModel):
 class TestEmailModel(BaseModel):
     recipient_email: Optional[str] = ""
 
+class EmailPauseModel(BaseModel):
+    paused: bool
+
+
 
 class CapaUpdateModel(BaseModel):
     status: str
@@ -1967,12 +1971,28 @@ def preview_clca_report(capa_id: str):
     return HTMLResponse(content=html)
 
 # SMTP CONFIGURATION & HELPER
+_EMAIL_PAUSED = os.environ.get("EMAIL_PAUSED", "false").lower() in ("true", "1", "yes")
+
+def is_email_paused() -> bool:
+    global _EMAIL_PAUSED
+    return _EMAIL_PAUSED or os.environ.get("EMAIL_PAUSED", "false").lower() in ("true", "1", "yes")
+
+def set_email_paused_state(paused: bool):
+    global _EMAIL_PAUSED
+    _EMAIL_PAUSED = bool(paused)
+    os.environ["EMAIL_PAUSED"] = "true" if _EMAIL_PAUSED else "false"
+
 def send_smtp_email(recipient_email: str, subject: str, html_body: str, attachment_name: str = None, attachment_content: str = None):
     """
     Attempts real email delivery via SMTP (Gmail / Custom SMTP).
     Supports comma/semicolon-separated recipients.
     Returns (success: bool, detail_message: str).
     """
+    # ── Check if email sending is currently PAUSED ────────────────────────
+    if is_email_paused():
+        return False, "⏸️ Email delivery is currently PAUSED by system administrator. No email was sent."
+    # ────────────────────────────────────────────────────────────────────────
+
     if not recipient_email:
         recipient_email = os.environ.get("MQA_EMAIL", "PTH_SMT-MQA@primaxelec.co.th")
 
@@ -2050,6 +2070,22 @@ def send_smtp_email(recipient_email: str, subject: str, html_body: str, attachme
 
 
 # EMAIL SETTINGS & STATUS MANAGEMENT ENDPOINTS
+@router.get("/email/pause-status")
+def get_email_pause_status():
+    return {
+        "status": "SUCCESS",
+        "is_paused": is_email_paused()
+    }
+
+@router.post("/email/pause")
+def set_email_pause(data: EmailPauseModel):
+    set_email_paused_state(data.paused)
+    return {
+        "status": "SUCCESS",
+        "is_paused": is_email_paused(),
+        "message": "⏸️ Email delivery has been PAUSED." if is_email_paused() else "▶️ Email delivery has been RESUMED."
+    }
+
 @router.get("/email/status")
 @router.get("/settings/email")
 def get_email_settings():
@@ -2074,7 +2110,8 @@ def get_email_settings():
         "smtp_password_masked": masked_pwd,
         "smtp_from": from_addr,
         "sender_name": sender_name,
-        "mqa_email": mqa_email
+        "mqa_email": mqa_email,
+        "is_paused": is_email_paused()
     }
 
 @router.post("/email/settings")
