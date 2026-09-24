@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=53">
+  <link rel="stylesheet" href="css/styles.css?v=54">
 
   <!-- External CDN Libraries (With graceful offline fallback) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -52,12 +52,12 @@
       </div>
 
       <!-- Email Settings Button -->
-      <button id="btn-open-email-settings" class="btn-select" style="display: flex; align-items: center; gap: 0.35rem; color: #38bdf8; border-color: rgba(56,189,248,0.4);">
+      <button id="btn-open-email-settings" class="btn-select" style="display: flex; align-items: center; gap: 0.35rem; color: #38bdf8; border-color: rgba(56,189,248,0.4); white-space: nowrap; flex-shrink: 0;">
         <span>📧</span> Email Config
       </button>
 
       <!-- Pause / Resume Email Sending Button -->
-      <button id="btn-header-pause-email" class="btn-select" onclick="toggleEmailPause()" style="display: flex; align-items: center; gap: 0.35rem; color: #34d399; border-color: rgba(52,211,153,0.4);" title="Click to Pause or Resume Outbound Email Sending">
+      <button id="btn-header-pause-email" class="btn-select" onclick="toggleEmailPause()" style="display: flex; align-items: center; gap: 0.35rem; color: #34d399; border-color: rgba(52,211,153,0.4); white-space: nowrap; flex-shrink: 0;" title="Click to Pause or Resume Outbound Email Sending">
         <span id="header-pause-email-icon">🟢</span> <span id="header-pause-email-text">Email: Active</span>
       </button>
 
@@ -1528,7 +1528,7 @@
   <!-- JS App Entrypoint -->
   <script src="js/translations.js?v=54"></script>
   <script src="js/checklist_data.js?v=54"></script>
-  <script src="js/app.js?v=57"></script>
+  <script src="js/app.js?v=58"></script>
 
   <script>
     // Inline quickLogin fallback for PWA cache mismatch safety
