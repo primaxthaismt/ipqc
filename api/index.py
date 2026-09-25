@@ -2801,7 +2801,7 @@ def submit_fai_audit(data: FAIAuditSubmitModel):
     audit_record["capas"] = new_capas
     
     # Store to Supabase & Unified DB
-    supabase_db_query("fai_audits", method="POST", data={
+    db_row = {
         "audit_id": data.audit_id,
         "audit_type": data.audit_type,
         "process_type": data.process_type,
@@ -2815,7 +2815,14 @@ def submit_fai_audit(data: FAIAuditSubmitModel):
         "verifier": data.verifier,
         "overall_status": audit_record["overall_status"],
         "payload": json.dumps(audit_record)
-    })
+    }
+    supabase_db_query("fai_audits", method="POST", data=db_row)
+    try:
+        from api.db_adapter import get_pg_pool, supabase_rest_fallback
+        if get_pg_pool():
+            supabase_rest_fallback("fai_audits", "POST", data=db_row)
+    except Exception:
+        pass
     
     # In-memory store
     idx = next((i for i, a in enumerate(FAI_DB) if a.get("audit_id") == data.audit_id), -1)
@@ -2881,7 +2888,7 @@ def get_fai_audits(
         params += f"&audit_time=lte.{end_date}T23:59:59"
         
     db_res = supabase_db_query("fai_audits", params=params)
-    if isinstance(db_res, list) and len(db_res) > 0:
+    if isinstance(db_res, list):
         for r in db_res:
             p = r.get("payload")
             if p:
@@ -2891,9 +2898,8 @@ def get_fai_audits(
                     results.append(r)
             else:
                 results.append(r)
-                
-    if not results:
-        # Fallback to local DB and in-memory FAI_DB
+    else:
+        # Fallback to local DB and in-memory FAI_DB ONLY if DB query failed completely (None or non-list)
         local_db = load_local_fai_db()
         for item in local_db:
             if not any(a.get("audit_id") == item.get("audit_id") for a in FAI_DB):
@@ -2903,10 +2909,6 @@ def get_fai_audits(
             results = [a for a in results if a.get("line_name") == line_name]
         if audit_type:
             results = [a for a in results if a.get("audit_type") == audit_type]
-        if model_no:
-            results = [a for a in results if model_no.lower() in a.get("model_no", "").lower()]
-        if work_order:
-            results = [a for a in results if work_order.lower() in a.get("work_order", "").lower()]
         if start_date:
             results = [a for a in results if (a.get("audit_time") or "")[:10] >= start_date[:10]]
         if end_date:
@@ -2922,17 +2924,21 @@ def get_fai_audits(
 
 @router.get("/fai/audits/{audit_id}")
 def get_single_fai_audit(audit_id: str):
-    fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
-    if not fai:
-        local_db = load_local_fai_db()
-        fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
-        if fai and fai not in FAI_DB:
-            FAI_DB.append(fai)
-    if not fai:
-        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
-        if isinstance(db_res, list) and len(db_res) > 0:
+    fai = None
+    # 1. Query Database first as source of truth
+    db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
+    if isinstance(db_res, list):
+        if len(db_res) > 0:
             payload = db_res[0].get("payload")
             fai = json.loads(payload) if payload else db_res[0]
+        else:
+            raise HTTPException(status_code=404, detail="FAI Record not found")
+    else:
+        # DB connection failed, fallback to memory / local
+        fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
+        if not fai:
+            local_db = load_local_fai_db()
+            fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
             
     if not fai:
         raise HTTPException(status_code=404, detail="FAI Record not found")
@@ -2940,16 +2946,17 @@ def get_single_fai_audit(audit_id: str):
 
 @router.put("/fai/audits/{audit_id}")
 def update_fai_audit(audit_id: str, data: FAIAuditUpdateModel):
-    # Find existing record
-    fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
-    if not fai:
-        local_db = load_local_fai_db()
-        fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
-    if not fai:
-        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
-        if isinstance(db_res, list) and len(db_res) > 0:
-            payload = db_res[0].get("payload")
-            fai = json.loads(payload) if payload else db_res[0]
+    # Find existing record from DB first
+    fai = None
+    db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
+    if isinstance(db_res, list) and len(db_res) > 0:
+        payload = db_res[0].get("payload")
+        fai = json.loads(payload) if payload else db_res[0]
+    else:
+        fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
+        if not fai:
+            local_db = load_local_fai_db()
+            fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
 
     if not fai:
         raise HTTPException(status_code=404, detail="FAI Record not found to update")
@@ -2967,7 +2974,7 @@ def update_fai_audit(audit_id: str, data: FAIAuditUpdateModel):
 
     fai["updated_at"] = datetime.now().isoformat()
 
-    # Persist to Unified DB / Supabase
+    # Persist to Unified DB / Supabase (with dual-sync)
     db_row = {
         "audit_id": audit_id,
         "audit_type": fai.get("audit_type", "FIRST_ARTICLE"),
@@ -2984,6 +2991,12 @@ def update_fai_audit(audit_id: str, data: FAIAuditUpdateModel):
         "payload": json.dumps(fai)
     }
     supabase_db_query("fai_audits", method="POST", data=db_row)
+    try:
+        from api.db_adapter import get_pg_pool, supabase_rest_fallback
+        if get_pg_pool():
+            supabase_rest_fallback("fai_audits", "POST", data=db_row)
+    except Exception:
+        pass
 
     # Update in-memory and local JSON
     idx = next((i for i, a in enumerate(FAI_DB) if a.get("audit_id") == audit_id), -1)
@@ -3003,13 +3016,28 @@ def update_fai_audit(audit_id: str, data: FAIAuditUpdateModel):
 @router.delete("/fai/audits/{audit_id}")
 def delete_fai_audit(audit_id: str):
     global FAI_DB
-    # 1. Delete from central DB / Supabase
+    # 1. Delete from central DB (PostgreSQL / Supabase)
     supabase_db_query("fai_audits", method="DELETE", params=f"audit_id=eq.{audit_id}")
+    try:
+        from api.db_adapter import get_pg_pool, supabase_rest_fallback
+        if get_pg_pool():
+            supabase_rest_fallback("fai_audits", "DELETE", params=f"audit_id=eq.{audit_id}")
+    except Exception:
+        pass
 
-    # 2. Delete from in-memory cache
+    # 2. Delete any associated CAPA records
+    try:
+        supabase_db_query("capa", method="DELETE", params=f"audit_id=eq.{audit_id}")
+        from api.db_adapter import get_pg_pool, supabase_rest_fallback
+        if get_pg_pool():
+            supabase_rest_fallback("capa", "DELETE", params=f"audit_id=eq.{audit_id}")
+    except Exception:
+        pass
+
+    # 3. Delete from in-memory cache
     FAI_DB = [a for a in FAI_DB if a.get("audit_id") != audit_id]
 
-    # 3. Delete from local JSON file
+    # 4. Delete from local JSON file
     local_db = load_local_fai_db()
     local_db = [a for a in local_db if a.get("audit_id") != audit_id]
     try:
@@ -3026,17 +3054,19 @@ def delete_fai_audit(audit_id: str):
 
 @router.get("/reports/fai/export")
 def export_fai_report(audit_id: str):
-    fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
-    if not fai:
-        local_db = load_local_fai_db()
-        fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
-        if fai and fai not in FAI_DB:
-            FAI_DB.append(fai)
-    if not fai:
-        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
-        if isinstance(db_res, list) and len(db_res) > 0:
+    fai = None
+    db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
+    if isinstance(db_res, list):
+        if len(db_res) > 0:
             payload = db_res[0].get("payload")
             fai = json.loads(payload) if payload else db_res[0]
+        else:
+            raise HTTPException(status_code=404, detail="FAI Record not found for export")
+    else:
+        fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
+        if not fai:
+            local_db = load_local_fai_db()
+            fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
             
     if not fai:
         raise HTTPException(status_code=404, detail="FAI Record not found for export")
@@ -3053,17 +3083,19 @@ def export_fai_report(audit_id: str):
 
 @router.get("/reports/fai/preview", response_class=HTMLResponse)
 def preview_fai_report(audit_id: str):
-    fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
-    if not fai:
-        local_db = load_local_fai_db()
-        fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
-        if fai and fai not in FAI_DB:
-            FAI_DB.append(fai)
-    if not fai:
-        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
-        if isinstance(db_res, list) and len(db_res) > 0:
+    fai = None
+    db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
+    if isinstance(db_res, list):
+        if len(db_res) > 0:
             payload = db_res[0].get("payload")
             fai = json.loads(payload) if payload else db_res[0]
+        else:
+            return HTMLResponse("<div style='color:red;padding:20px;'>FAI Record Not Found</div>", status_code=404)
+    else:
+        fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
+        if not fai:
+            local_db = load_local_fai_db()
+            fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
             
     if not fai:
         return HTMLResponse("<div style='color:red;padding:20px;'>FAI Record Not Found</div>", status_code=404)

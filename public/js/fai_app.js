@@ -1016,6 +1016,18 @@ async function deleteFaiRecord(auditId) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to delete record');
     }
+    // Optimistically remove from cached records and re-render immediately
+    cachedFaiRecords = cachedFaiRecords.filter(r => r.audit_id !== auditId);
+    filterFaiHistoryTable();
+
+    // Update KPI stats immediately
+    const kpiTotal = document.getElementById('kpi-fai-total');
+    const kpiPassed = document.getElementById('kpi-fai-passed');
+    const kpiBlocked = document.getElementById('kpi-fai-blocked');
+    if (kpiTotal) kpiTotal.textContent = cachedFaiRecords.length;
+    if (kpiPassed) kpiPassed.textContent = cachedFaiRecords.filter(r => r.overall_status === 'OK').length;
+    if (kpiBlocked) kpiBlocked.textContent = cachedFaiRecords.filter(r => r.overall_status === 'NG').length;
+
     if (typeof showToast === 'function') {
       showToast('🗑️ Record Deleted', `FAI Record ${auditId} has been deleted.`, 'success');
     }

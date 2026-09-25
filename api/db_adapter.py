@@ -223,7 +223,7 @@ def supabase_rest_fallback(endpoint: str, method: str = "GET", data: dict = None
             params = urllib.parse.quote(params, safe="=&?+,()[]:*")
         url += f"?{params}"
     prefer_str = "return=representation"
-    if method.upper() == "POST" and endpoint == "fai_master_profiles":
+    if method.upper() == "POST" and endpoint in ("fai_master_profiles", "fai_audits"):
         prefer_str = "resolution=merge-duplicates,return=representation"
     headers = {
         "Content-Type": "application/json",
@@ -235,10 +235,17 @@ def supabase_rest_fallback(endpoint: str, method: str = "GET", data: dict = None
     body = json.dumps(data).encode("utf-8") if data else None
     try:
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=25) as resp:
             res_body = resp.read().decode("utf-8")
             return json.loads(res_body) if res_body else []
-    except Exception:
+    except Exception as e:
+        err_msg = str(e)
+        if hasattr(e, 'read'):
+            try:
+                err_msg += f" - {e.read().decode('utf-8')}"
+            except Exception:
+                pass
+        print(f"[Supabase REST] {method} {url} error: {err_msg}")
         return None
 
 def unified_db_query(endpoint: str, method: str = "GET", data: dict = None, params: str = ""):
