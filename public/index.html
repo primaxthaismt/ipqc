@@ -56,9 +56,9 @@
         <span>📧</span> Email Config
       </button>
 
-      <!-- Pause / Resume Email Sending Button -->
-      <button id="btn-header-pause-email" class="btn-select" onclick="toggleEmailPause()" style="display: flex; align-items: center; gap: 0.35rem; color: #34d399; border-color: rgba(52,211,153,0.4); white-space: nowrap; flex-shrink: 0;" title="Click to Pause or Resume Outbound Email Sending">
-        <span id="header-pause-email-icon">🟢</span> <span id="header-pause-email-text">Email: Active</span>
+      <!-- Pause / Resume Email Sending Button (Default: PAUSED) -->
+      <button id="btn-header-pause-email" class="btn-select" onclick="toggleEmailPause()" style="display: flex; align-items: center; gap: 0.35rem; color: #fbbf24; border-color: rgba(251,191,36,0.5); background: rgba(251,191,36,0.1); white-space: nowrap; flex-shrink: 0;" title="Emails are PAUSED by default. Click to Resume sending.">
+        <span id="header-pause-email-icon">⏸️</span> <span id="header-pause-email-text">Email: PAUSED</span>
       </button>
 
       <select id="select-lang" class="btn-select">
@@ -1413,20 +1413,20 @@
         <button id="btn-close-email-settings-modal" class="btn-select" style="padding: 0.2rem 0.6rem;">✕</button>
       </div>
 
-      <!-- Email Pause / Resume Master Switch Card -->
-      <div id="email-modal-pause-card" style="background: rgba(15,23,42,0.85); padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid rgba(52,211,153,0.3); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+      <!-- Email Pause / Resume Master Switch Card (Default: PAUSED) -->
+      <div id="email-modal-pause-card" style="background: rgba(15,23,42,0.85); padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid rgba(251,191,36,0.4); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
         <div>
           <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: bold; color: #fff;">
-            <span id="modal-pause-indicator-icon">🟢</span>
+            <span id="modal-pause-indicator-icon">⏸️</span>
             <span>Outbound Email Dispatch:</span>
-            <span id="modal-pause-status-label" style="color: #34d399;">ACTIVE</span>
+            <span id="modal-pause-status-label" style="color: #fbbf24;">PAUSED (SUSPENDED)</span>
           </div>
           <div id="modal-pause-status-desc" style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem;">
-            Automated line audit dispatches, manual emails, and reports are sending normally.
+            All outbound emails (MQA line patrol dispatches, CLCA alerts, FAI reports, and tests) are temporarily suspended.
           </div>
         </div>
-        <button id="btn-modal-pause-email" type="button" class="btn-select" onclick="toggleEmailPause()" style="white-space: nowrap; font-weight: bold; padding: 0.4rem 0.85rem; border-color: rgba(251,191,36,0.5); color: #fbbf24; cursor: pointer;">
-          ⏸️ Pause All Emails
+        <button id="btn-modal-pause-email" type="button" class="btn-select" onclick="toggleEmailPause()" style="white-space: nowrap; font-weight: bold; padding: 0.4rem 0.85rem; border-color: rgba(52,211,153,0.6); color: #34d399; background: rgba(52,211,153,0.12); cursor: pointer;">
+          ▶️ Resume Emails
         </button>
       </div>
 
@@ -1528,7 +1528,7 @@
   <!-- JS App Entrypoint -->
   <script src="js/translations.js?v=54"></script>
   <script src="js/checklist_data.js?v=54"></script>
-  <script src="js/app.js?v=58"></script>
+  <script src="js/app.js?v=59"></script>
 
   <script>
     // Inline quickLogin fallback for PWA cache mismatch safety

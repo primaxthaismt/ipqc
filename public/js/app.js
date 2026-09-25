@@ -127,7 +127,7 @@ function initApp() {
   safeExec(renderQrStickers);
   safeExec(loadAIInsights);
   safeExec(checkUserSession);
-  safeExec(checkEmailPauseStatus);
+  safeExec(() => checkEmailPauseStatus(true));
 
   // Network Status Monitor
   window.addEventListener('online', updateNetworkStatus);
@@ -3211,7 +3211,8 @@ async function handleConfirmSendEmail() {
 // ==========================================
 // OUTBOUND EMAIL PAUSE & RESUME CONTROLS
 // ==========================================
-window.isEmailPausedState = false;
+// STRICT RULE: Outbound email is PAUSED by default every time the browser opens.
+window.isEmailPausedState = true;
 
 function updateEmailPauseUI(isPaused) {
   window.isEmailPausedState = Boolean(isPaused);
@@ -3227,7 +3228,7 @@ function updateEmailPauseUI(isPaused) {
       headerBtn.style.color = '#fbbf24';
       headerBtn.style.borderColor = 'rgba(251,191,36,0.5)';
       headerBtn.style.background = 'rgba(251,191,36,0.1)';
-      headerBtn.title = 'Emails are PAUSED. Click to Resume sending.';
+      headerBtn.title = 'Emails are PAUSED by default. Click to Resume sending.';
     } else {
       headerIcon.textContent = '🟢';
       headerText.textContent = 'Email: Active';
@@ -3271,13 +3272,36 @@ function updateEmailPauseUI(isPaused) {
 }
 window.updateEmailPauseUI = updateEmailPauseUI;
 
-async function checkEmailPauseStatus() {
+async function checkEmailPauseStatus(isInitialAppLoad = false) {
+  // Session tracking: has the user explicitly clicked "Resume" during THIS browser session?
+  const isResumedInSession = sessionStorage.getItem('ipqc_email_session_resumed') === 'true';
+
+  if (!isResumedInSession) {
+    // Every time browser opens fresh, ALWAYS default to PAUSED
+    window.isEmailPausedState = true;
+    updateEmailPauseUI(true);
+
+    if (isInitialAppLoad) {
+      try {
+        await apiFetch('/api/email/pause', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paused: true })
+        });
+      } catch (err) {
+        console.warn('Could not sync initial default pause to server:', err);
+      }
+      return;
+    }
+  }
+
   try {
     const res = await apiFetch('/api/email/pause-status');
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data.is_paused === 'boolean') {
-        updateEmailPauseUI(data.is_paused);
+        const finalPaused = isResumedInSession ? data.is_paused : true;
+        updateEmailPauseUI(finalPaused);
       }
     }
   } catch (err) {
@@ -3290,12 +3314,18 @@ async function toggleEmailPause() {
   const willPause = !window.isEmailPausedState;
   const promptMsg = willPause
     ? '⏸️ Are you sure you want to PAUSE all outbound email sending?\n\n- Automated MQA line patrol dispatches will be held.\n- CLCA / 8D email notifications will not be sent.\n- FAI/LAI report emails will not be sent.\n\nYou can resume email delivery at any time.'
-    : '▶️ Resume outbound email delivery?\n\n- Automated MQA line patrol dispatches will resume.\n- Manual report sending will be re-enabled.';
+    : '▶️ Resume outbound email delivery?\n\n- Automated MQA line patrol dispatches will resume.\n- Manual report sending will be re-enabled.\n\n(Note: Closing and reopening the browser will automatically reset email back to PAUSED.)';
 
   if (!confirm(promptMsg)) return;
 
   // Optimistic UI update
   updateEmailPauseUI(willPause);
+
+  if (willPause) {
+    sessionStorage.removeItem('ipqc_email_session_resumed');
+  } else {
+    sessionStorage.setItem('ipqc_email_session_resumed', 'true');
+  }
 
   try {
     const res = await apiFetch('/api/email/pause', {
@@ -3314,10 +3344,20 @@ async function toggleEmailPause() {
     } else {
       // Revert if API failed
       updateEmailPauseUI(!willPause);
+      if (willPause) {
+        sessionStorage.setItem('ipqc_email_session_resumed', 'true');
+      } else {
+        sessionStorage.removeItem('ipqc_email_session_resumed');
+      }
       alert(`⚠️ Could not update email pause state: ${data.message || 'Server error'}`);
     }
   } catch (err) {
     updateEmailPauseUI(!willPause);
+    if (willPause) {
+      sessionStorage.setItem('ipqc_email_session_resumed', 'true');
+    } else {
+      sessionStorage.removeItem('ipqc_email_session_resumed');
+    }
     alert(`⚠️ Failed to communicate with server: ${err.message}`);
   }
 }
@@ -3346,7 +3386,8 @@ async function checkEmailStatus() {
     if (res.ok) {
       const data = await res.json();
       if (typeof data.is_paused === 'boolean') {
-        updateEmailPauseUI(data.is_paused);
+        const isResumedInSession = sessionStorage.getItem('ipqc_email_session_resumed') === 'true';
+        updateEmailPauseUI(isResumedInSession ? data.is_paused : true);
       }
       if (txt) {
         txt.textContent = data.configured ? `🟢 Active (${data.smtp_user} - Ready)` : '🟡 Unconfigured';

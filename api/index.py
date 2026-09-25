@@ -1971,11 +1971,11 @@ def preview_clca_report(capa_id: str):
     return HTMLResponse(content=html)
 
 # SMTP CONFIGURATION & HELPER
-_EMAIL_PAUSED = os.environ.get("EMAIL_PAUSED", "false").lower() in ("true", "1", "yes")
+_EMAIL_PAUSED = os.environ.get("EMAIL_PAUSED", "true").lower() in ("true", "1", "yes")
 
 def is_email_paused() -> bool:
     global _EMAIL_PAUSED
-    return _EMAIL_PAUSED or os.environ.get("EMAIL_PAUSED", "false").lower() in ("true", "1", "yes")
+    return _EMAIL_PAUSED
 
 def set_email_paused_state(paused: bool):
     global _EMAIL_PAUSED
