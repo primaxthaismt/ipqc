@@ -7,7 +7,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.utils import formataddr
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, HTTPException, Header, Depends, APIRouter
 from fastapi.staticfiles import StaticFiles
@@ -238,6 +238,33 @@ class FAIAuditSubmitModel(BaseModel):
     auditor: Optional[str] = ""
     verifier: Optional[str] = ""
     overall_status: Optional[str] = "OK"
+
+class FAIAuditUpdateModel(BaseModel):
+    audit_type: Optional[str] = None
+    process_type: Optional[str] = None
+    line_name: Optional[str] = None
+    work_order: Optional[str] = None
+    model_no: Optional[str] = None
+    customer: Optional[str] = None
+    shift: Optional[str] = None
+    auditor: Optional[str] = None
+    verifier: Optional[str] = None
+    overall_status: Optional[str] = None
+    notes_eng_change: Optional[str] = None
+    sample_qty: Optional[int] = None
+    lot_qty: Optional[int] = None
+    pcb_pn: Optional[str] = None
+    pcb_date_code: Optional[str] = None
+    pdm_bom_version: Optional[str] = None
+    solder_paste_brand: Optional[str] = None
+    first_article_time: Optional[str] = None
+    stencil_thickness: Optional[str] = None
+    stencil_no: Optional[str] = None
+    stencil_sn: Optional[str] = None
+    paste_thickness_range: Optional[str] = None
+    thickness_points: Optional[List[Any]] = None
+    details: Optional[List[Dict[str, Any]]] = None
+    critical_components: Optional[List[Dict[str, Any]]] = None
 
 class EmailFAIReportModel(BaseModel):
     audit_id: str
@@ -2773,9 +2800,9 @@ def submit_fai_audit(data: FAIAuditSubmitModel):
     audit_record["overall_status"] = "NG" if has_ng else "OK"
     audit_record["capas"] = new_capas
     
-    # Store to Supabase
+    # Store to Supabase & Unified DB
     supabase_db_query("fai_audits", method="POST", data={
-        "id": data.audit_id,
+        "audit_id": data.audit_id,
         "audit_type": data.audit_type,
         "process_type": data.process_type,
         "line_name": data.line_name,
@@ -2791,7 +2818,6 @@ def submit_fai_audit(data: FAIAuditSubmitModel):
     })
     
     # In-memory store
-    # Update or append
     idx = next((i for i, a in enumerate(FAI_DB) if a.get("audit_id") == data.audit_id), -1)
     if idx >= 0:
         FAI_DB[idx] = audit_record
@@ -2813,15 +2839,46 @@ def get_fai_audits(
     line_name: Optional[str] = None,
     model_no: Optional[str] = None,
     work_order: Optional[str] = None,
-    limit: int = 50
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 100
 ):
+    # Enforce maximum 7 days date range if provided
+    if start_date and end_date:
+        try:
+            s_dt = datetime.strptime(start_date[:10], "%Y-%m-%d")
+            e_dt = datetime.strptime(end_date[:10], "%Y-%m-%d")
+            if (e_dt - s_dt).days > 7:
+                e_dt = s_dt + timedelta(days=7)
+                end_date = e_dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    elif start_date and not end_date:
+        try:
+            s_dt = datetime.strptime(start_date[:10], "%Y-%m-%d")
+            e_dt = s_dt + timedelta(days=7)
+            end_date = e_dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    elif end_date and not start_date:
+        try:
+            e_dt = datetime.strptime(end_date[:10], "%Y-%m-%d")
+            s_dt = e_dt - timedelta(days=7)
+            start_date = s_dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+
     results = []
-    # Try Supabase first
+    # Try Unified DB / Supabase first
     params = f"select=*&order=audit_time.desc&limit={limit}"
     if line_name and line_name != "All Lines":
         params += f"&line_name=eq.{urllib.parse.quote(line_name)}"
     if audit_type:
         params += f"&audit_type=eq.{audit_type}"
+    if start_date:
+        params += f"&audit_time=gte.{start_date}T00:00:00"
+    if end_date:
+        params += f"&audit_time=lte.{end_date}T23:59:59"
         
     db_res = supabase_db_query("fai_audits", params=params)
     if isinstance(db_res, list) and len(db_res) > 0:
@@ -2848,7 +2905,19 @@ def get_fai_audits(
             results = [a for a in results if a.get("audit_type") == audit_type]
         if model_no:
             results = [a for a in results if model_no.lower() in a.get("model_no", "").lower()]
+        if work_order:
+            results = [a for a in results if work_order.lower() in a.get("work_order", "").lower()]
+        if start_date:
+            results = [a for a in results if (a.get("audit_time") or "")[:10] >= start_date[:10]]
+        if end_date:
+            results = [a for a in results if (a.get("audit_time") or "")[:10] <= end_date[:10]]
             
+    # Extra in-memory filtering for partial search query
+    if model_no:
+        results = [a for a in results if model_no.lower() in (a.get("model_no") or "").lower()]
+    if work_order:
+        results = [a for a in results if work_order.lower() in (a.get("work_order") or "").lower()]
+
     return results[:limit]
 
 @router.get("/fai/audits/{audit_id}")
@@ -2860,7 +2929,7 @@ def get_single_fai_audit(audit_id: str):
         if fai and fai not in FAI_DB:
             FAI_DB.append(fai)
     if not fai:
-        db_res = supabase_db_query("fai_audits", params=f"id=eq.{audit_id}&select=*")
+        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
         if isinstance(db_res, list) and len(db_res) > 0:
             payload = db_res[0].get("payload")
             fai = json.loads(payload) if payload else db_res[0]
@@ -2868,6 +2937,92 @@ def get_single_fai_audit(audit_id: str):
     if not fai:
         raise HTTPException(status_code=404, detail="FAI Record not found")
     return fai
+
+@router.put("/fai/audits/{audit_id}")
+def update_fai_audit(audit_id: str, data: FAIAuditUpdateModel):
+    # Find existing record
+    fai = next((a for a in FAI_DB if a.get("audit_id") == audit_id), None)
+    if not fai:
+        local_db = load_local_fai_db()
+        fai = next((a for a in local_db if a.get("audit_id") == audit_id), None)
+    if not fai:
+        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
+        if isinstance(db_res, list) and len(db_res) > 0:
+            payload = db_res[0].get("payload")
+            fai = json.loads(payload) if payload else db_res[0]
+
+    if not fai:
+        raise HTTPException(status_code=404, detail="FAI Record not found to update")
+
+    # Apply updates
+    updates = data.dict(exclude_unset=True)
+    for key, val in updates.items():
+        if val is not None:
+            fai[key] = val
+
+    # If details were updated and overall_status was not explicitly set, re-evaluate OK/NG
+    if "details" in updates and "overall_status" not in updates:
+        has_ng = any(d.get("result") in ["X", "NG", "FAIL"] for d in fai.get("details", []))
+        fai["overall_status"] = "NG" if has_ng else "OK"
+
+    fai["updated_at"] = datetime.now().isoformat()
+
+    # Persist to Unified DB / Supabase
+    db_row = {
+        "audit_id": audit_id,
+        "audit_type": fai.get("audit_type", "FIRST_ARTICLE"),
+        "process_type": fai.get("process_type", "SOLDER_PASTE"),
+        "line_name": fai.get("line_name", ""),
+        "work_order": fai.get("work_order", ""),
+        "model_no": fai.get("model_no", ""),
+        "customer": fai.get("customer", ""),
+        "shift": fai.get("shift", "Day Shift"),
+        "audit_time": fai.get("audit_time"),
+        "auditor": fai.get("auditor", ""),
+        "verifier": fai.get("verifier", ""),
+        "overall_status": fai.get("overall_status", "OK"),
+        "payload": json.dumps(fai)
+    }
+    supabase_db_query("fai_audits", method="POST", data=db_row)
+
+    # Update in-memory and local JSON
+    idx = next((i for i, a in enumerate(FAI_DB) if a.get("audit_id") == audit_id), -1)
+    if idx >= 0:
+        FAI_DB[idx] = fai
+    else:
+        FAI_DB.insert(0, fai)
+    save_local_fai_db()
+
+    return {
+        "status": "SUCCESS",
+        "audit_id": audit_id,
+        "record": fai,
+        "message": f"FAI Record {audit_id} updated successfully."
+    }
+
+@router.delete("/fai/audits/{audit_id}")
+def delete_fai_audit(audit_id: str):
+    global FAI_DB
+    # 1. Delete from central DB / Supabase
+    supabase_db_query("fai_audits", method="DELETE", params=f"audit_id=eq.{audit_id}")
+
+    # 2. Delete from in-memory cache
+    FAI_DB = [a for a in FAI_DB if a.get("audit_id") != audit_id]
+
+    # 3. Delete from local JSON file
+    local_db = load_local_fai_db()
+    local_db = [a for a in local_db if a.get("audit_id") != audit_id]
+    try:
+        with open("data/fai_audits.json", "w", encoding="utf-8") as f:
+            json.dump(local_db, f, indent=2)
+    except Exception as e:
+        print(f"Error saving local JSON after delete: {e}")
+
+    return {
+        "status": "SUCCESS",
+        "audit_id": audit_id,
+        "message": f"FAI Record {audit_id} deleted successfully."
+    }
 
 @router.get("/reports/fai/export")
 def export_fai_report(audit_id: str):
@@ -2878,7 +3033,7 @@ def export_fai_report(audit_id: str):
         if fai and fai not in FAI_DB:
             FAI_DB.append(fai)
     if not fai:
-        db_res = supabase_db_query("fai_audits", params=f"id=eq.{audit_id}&select=*")
+        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
         if isinstance(db_res, list) and len(db_res) > 0:
             payload = db_res[0].get("payload")
             fai = json.loads(payload) if payload else db_res[0]
@@ -2905,7 +3060,7 @@ def preview_fai_report(audit_id: str):
         if fai and fai not in FAI_DB:
             FAI_DB.append(fai)
     if not fai:
-        db_res = supabase_db_query("fai_audits", params=f"id=eq.{audit_id}&select=*")
+        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{audit_id}&select=*")
         if isinstance(db_res, list) and len(db_res) > 0:
             payload = db_res[0].get("payload")
             fai = json.loads(payload) if payload else db_res[0]
@@ -3033,7 +3188,7 @@ def send_fai_report_email(data: EmailFAIReportModel):
         if fai and fai not in FAI_DB:
             FAI_DB.append(fai)
     if not fai:
-        db_res = supabase_db_query("fai_audits", params=f"id=eq.{data.audit_id}&select=*")
+        db_res = supabase_db_query("fai_audits", params=f"audit_id=eq.{data.audit_id}&select=*")
         if isinstance(db_res, list) and len(db_res) > 0:
             payload = db_res[0].get("payload")
             fai = json.loads(payload) if payload else db_res[0]

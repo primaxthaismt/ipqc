@@ -720,24 +720,105 @@ async function submitFaiWizard() {
   }
 }
 
+// Date Range Filter Controls (Max 7 Days)
+function initFaiDateRange() {
+  const fromInp = document.getElementById('fai-filter-date-from');
+  const toInp = document.getElementById('fai-filter-date-to');
+  if (fromInp && toInp && (!fromInp.value || !toInp.value)) {
+    const today = new Date();
+    const past7 = new Date();
+    past7.setDate(today.getDate() - 6);
+    toInp.value = today.toISOString().split('T')[0];
+    fromInp.value = past7.toISOString().split('T')[0];
+  }
+}
+
+function onFaiDateRangeChange(source) {
+  const fromInp = document.getElementById('fai-filter-date-from');
+  const toInp = document.getElementById('fai-filter-date-to');
+  if (!fromInp || !toInp) return;
+
+  if (!fromInp.value && toInp.value) {
+    const toDate = new Date(toInp.value);
+    const fromDate = new Date(toDate);
+    fromDate.setDate(toDate.getDate() - 6);
+    fromInp.value = fromDate.toISOString().split('T')[0];
+  } else if (fromInp.value && !toInp.value) {
+    const fromDate = new Date(fromInp.value);
+    const toDate = new Date(fromDate);
+    toDate.setDate(fromDate.getDate() + 6);
+    toInp.value = toDate.toISOString().split('T')[0];
+  } else if (fromInp.value && toInp.value) {
+    const fromDate = new Date(fromInp.value);
+    const toDate = new Date(toInp.value);
+    
+    if (toDate < fromDate) {
+      if (source === 'from') {
+        toInp.value = fromInp.value;
+      } else {
+        fromInp.value = toInp.value;
+      }
+    } else {
+      const diffMs = toDate.getTime() - fromDate.getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays > 6) { // More than 7 calendar days total
+        if (typeof showToast === 'function') {
+          showToast('⚠️ Date Range Notice', 'Maximum search date range is 7 days. Date range has been adjusted.', 'warning');
+        } else {
+          alert('Maximum search date range is 7 days. Date range has been automatically adjusted.');
+        }
+        if (source === 'from') {
+          const newTo = new Date(fromDate);
+          newTo.setDate(fromDate.getDate() + 6);
+          toInp.value = newTo.toISOString().split('T')[0];
+        } else {
+          const newFrom = new Date(toDate);
+          newFrom.setDate(toDate.getDate() - 6);
+          fromInp.value = newFrom.toISOString().split('T')[0];
+        }
+      }
+    }
+  }
+  loadFaiHistory();
+}
+
+function resetFaiDateRange() {
+  const fromInp = document.getElementById('fai-filter-date-from');
+  const toInp = document.getElementById('fai-filter-date-to');
+  const today = new Date();
+  const past7 = new Date();
+  past7.setDate(today.getDate() - 6);
+  if (toInp) toInp.value = today.toISOString().split('T')[0];
+  if (fromInp) fromInp.value = past7.toISOString().split('T')[0];
+  loadFaiHistory();
+}
+
 // Load FAI History Table
 async function loadFaiHistory() {
   const tbody = document.getElementById('fai-table-body');
   if (!tbody) return;
 
+  // Initialize date range defaults if unset
+  initFaiDateRange();
+
   try {
     const typeFilter = document.getElementById('fai-filter-type')?.value || '';
     const lineFilter = document.getElementById('fai-filter-line')?.value || '';
-    let url = '/api/fai/audits?limit=50';
+    const dateFrom = document.getElementById('fai-filter-date-from')?.value || '';
+    const dateTo = document.getElementById('fai-filter-date-to')?.value || '';
+
+    let url = '/api/fai/audits?limit=100';
     if (typeFilter) url += `&audit_type=${encodeURIComponent(typeFilter)}`;
     if (lineFilter) url += `&line_name=${encodeURIComponent(lineFilter)}`;
+    if (dateFrom) url += `&start_date=${encodeURIComponent(dateFrom)}`;
+    if (dateTo) url += `&end_date=${encodeURIComponent(dateTo)}`;
 
     const res = await fetch(url);
     if (!res.ok) throw new Error('Could not fetch FAI records');
     const records = await res.json();
     cachedFaiRecords = Array.isArray(records) ? records : [];
 
-    renderFaiHistoryTableRows(cachedFaiRecords);
+    filterFaiHistoryTable();
 
     // Update KPI stats
     const totalCount = cachedFaiRecords.length;
@@ -759,7 +840,7 @@ async function loadFaiHistory() {
 }
 
 function filterFaiHistoryTable() {
-  const query = (document.getElementById('fai-filter-search')?.value || '').toLowerCase();
+  const query = (document.getElementById('fai-filter-search')?.value || '').toLowerCase().trim();
   if (!query) {
     renderFaiHistoryTableRows(cachedFaiRecords);
     return;
@@ -769,7 +850,8 @@ function filterFaiHistoryTable() {
            (r.work_order || '').toLowerCase().includes(query) ||
            (r.line_name || '').toLowerCase().includes(query) ||
            (r.audit_id || '').toLowerCase().includes(query) ||
-           (r.auditor || '').toLowerCase().includes(query);
+           (r.auditor || '').toLowerCase().includes(query) ||
+           (r.verifier || '').toLowerCase().includes(query);
   });
   renderFaiHistoryTableRows(filtered);
 }
@@ -779,7 +861,7 @@ function renderFaiHistoryTableRows(records) {
   if (!tbody) return;
 
   if (records.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted);">No 5Q4-045 records found. Click "+ Start First Article" above to execute.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted);">No 5Q4-045 records found for the selected date range and filter criteria. Click "+ Start First Article" above to execute.</td></tr>`;
     return;
   }
 
@@ -810,18 +892,138 @@ function renderFaiHistoryTableRows(records) {
         </td>
         <td style="padding:0.75rem;">${statusBadge}</td>
         <td style="padding:0.75rem;text-align:right;">
-          <div style="display:flex;gap:0.4rem;justify-content:flex-end;">
-            <button class="btn-select" onclick="exportFaiExcel('${r.audit_id}')" style="color:#34d399;font-size:0.75rem;padding:0.25rem 0.5rem;" title="Download Official 5Q4-045 V5 Excel">
+          <div style="display:flex;gap:0.35rem;justify-content:flex-end;flex-wrap:wrap;">
+            <button class="btn-select" onclick="exportFaiExcel('${r.audit_id}')" style="color:#34d399;font-size:0.75rem;padding:0.2rem 0.45rem;" title="Download Official 5Q4-045 V5 Excel">
               📥 Excel
             </button>
-            <button class="btn-select" onclick="previewFaiReportModal('${r.audit_id}')" style="font-size:0.75rem;padding:0.25rem 0.5rem;" title="Live Report Preview">
+            <button class="btn-select" onclick="previewFaiReportModal('${r.audit_id}')" style="font-size:0.75rem;padding:0.2rem 0.45rem;" title="Live Report Preview">
               👁️ View
+            </button>
+            <button class="btn-select" onclick="openEditFaiModal('${r.audit_id}')" style="color:#facc15;border-color:rgba(250,204,21,0.4);font-size:0.75rem;padding:0.2rem 0.45rem;" title="Modify FAI Record">
+              ✏️ Edit
+            </button>
+            <button class="btn-select" onclick="deleteFaiRecord('${r.audit_id}')" style="color:#ef4444;border-color:rgba(239,68,68,0.4);font-size:0.75rem;padding:0.2rem 0.45rem;" title="Delete FAI Record">
+              🗑️ Delete
             </button>
           </div>
         </td>
       </tr>
     `;
   }).join('');
+}
+
+// Open FAI Edit Modal
+function openEditFaiModal(auditId) {
+  const record = cachedFaiRecords.find(r => r.audit_id === auditId);
+  if (!record) {
+    alert('Record not found');
+    return;
+  }
+
+  const idInp = document.getElementById('fai-edit-id');
+  const dispId = document.getElementById('fai-edit-display-id');
+  const typeInp = document.getElementById('fai-edit-type');
+  const lineInp = document.getElementById('fai-edit-line');
+  const woInp = document.getElementById('fai-edit-wo');
+  const modelInp = document.getElementById('fai-edit-model');
+  const custInp = document.getElementById('fai-edit-customer');
+  const shiftInp = document.getElementById('fai-edit-shift');
+  const sampleInp = document.getElementById('fai-edit-sample-qty');
+  const lotInp = document.getElementById('fai-edit-lot-qty');
+  const pcbInp = document.getElementById('fai-edit-pcb-pn');
+  const auditorInp = document.getElementById('fai-edit-auditor');
+  const verifierInp = document.getElementById('fai-edit-verifier');
+  const statusInp = document.getElementById('fai-edit-status');
+  const notesInp = document.getElementById('fai-edit-notes');
+
+  if (idInp) idInp.value = record.audit_id || '';
+  if (dispId) dispId.value = record.audit_id || '';
+  if (typeInp) typeInp.value = record.audit_type || 'FIRST_ARTICLE';
+  if (lineInp) lineInp.value = record.line_name || 'SMT Line T1';
+  if (woInp) woInp.value = record.work_order || '';
+  if (modelInp) modelInp.value = record.model_no || '';
+  if (custInp) custInp.value = record.customer || '';
+  if (shiftInp) shiftInp.value = record.shift || 'Day Shift';
+  if (sampleInp) sampleInp.value = record.sample_qty != null ? record.sample_qty : 5;
+  if (lotInp) lotInp.value = record.lot_qty != null ? record.lot_qty : 1000;
+  if (pcbInp) pcbInp.value = record.pcb_pn || '';
+  if (auditorInp) auditorInp.value = record.auditor || '';
+  if (verifierInp) verifierInp.value = record.verifier || '';
+  if (statusInp) statusInp.value = record.overall_status || 'OK';
+  if (notesInp) notesInp.value = record.notes_eng_change || '';
+
+  const modal = document.getElementById('modal-fai-edit');
+  if (modal) modal.classList.add('active');
+}
+
+function closeEditFaiModal() {
+  const modal = document.getElementById('modal-fai-edit');
+  if (modal) modal.classList.remove('active');
+}
+
+async function saveFaiEdit() {
+  const auditId = document.getElementById('fai-edit-id')?.value;
+  if (!auditId) return;
+
+  const payload = {
+    audit_type: document.getElementById('fai-edit-type')?.value,
+    line_name: document.getElementById('fai-edit-line')?.value,
+    work_order: document.getElementById('fai-edit-wo')?.value,
+    model_no: document.getElementById('fai-edit-model')?.value,
+    customer: document.getElementById('fai-edit-customer')?.value,
+    shift: document.getElementById('fai-edit-shift')?.value,
+    sample_qty: parseInt(document.getElementById('fai-edit-sample-qty')?.value, 10) || 5,
+    lot_qty: parseInt(document.getElementById('fai-edit-lot-qty')?.value, 10) || 1000,
+    pcb_pn: document.getElementById('fai-edit-pcb-pn')?.value,
+    auditor: document.getElementById('fai-edit-auditor')?.value,
+    verifier: document.getElementById('fai-edit-verifier')?.value,
+    overall_status: document.getElementById('fai-edit-status')?.value,
+    notes_eng_change: document.getElementById('fai-edit-notes')?.value
+  };
+
+  try {
+    const res = await fetch(`/api/fai/audits/${encodeURIComponent(auditId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to update record');
+    }
+    const data = await res.json();
+    if (typeof showToast === 'function') {
+      showToast('✅ Record Updated', `FAI Record ${auditId} has been successfully updated.`, 'success');
+    }
+    closeEditFaiModal();
+    await loadFaiHistory();
+  } catch (err) {
+    console.error('Error saving FAI edit:', err);
+    alert(`Could not save changes: ${err.message}`);
+  }
+}
+
+async function deleteFaiRecord(auditId) {
+  if (!auditId) return;
+  const confirmed = confirm(`Are you sure you want to permanently delete FAI Record "${auditId}"?\n\nThis will remove the record from both database and local records.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/fai/audits/${encodeURIComponent(auditId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to delete record');
+    }
+    if (typeof showToast === 'function') {
+      showToast('🗑️ Record Deleted', `FAI Record ${auditId} has been deleted.`, 'success');
+    }
+    await loadFaiHistory();
+  } catch (err) {
+    console.error('Error deleting FAI record:', err);
+    alert(`Could not delete record: ${err.message}`);
+  }
 }
 
 // Export 5Q4-045 Excel

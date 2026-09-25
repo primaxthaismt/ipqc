@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS public.fai_audits (
     auditor TEXT,
     verifier TEXT,
     overall_status TEXT DEFAULT 'OK',
+    payload TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

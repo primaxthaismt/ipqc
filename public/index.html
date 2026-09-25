@@ -904,13 +904,13 @@
         </div>
 
         <!-- Filters -->
-        <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
-          <select id="fai-filter-type" class="login-input" style="flex:1;min-width:140px;background:rgba(15,23,42,0.8);" onchange="loadFaiHistory()">
+        <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap;align-items:center;">
+          <select id="fai-filter-type" class="login-input" style="flex:1;min-width:130px;background:rgba(15,23,42,0.8);" onchange="loadFaiHistory()">
             <option value="">All Types (全部類型)</option>
             <option value="FIRST_ARTICLE">First Article (首件)</option>
             <option value="LAST_ARTICLE">Last Article (末件)</option>
           </select>
-          <select id="fai-filter-line" class="login-input" style="flex:1;min-width:160px;background:rgba(15,23,42,0.8);" onchange="loadFaiHistory()">
+          <select id="fai-filter-line" class="login-input" style="flex:1;min-width:140px;background:rgba(15,23,42,0.8);" onchange="loadFaiHistory()">
             <option value="">All Lines (全部產線)</option>
             <option value="SMT Line T1">SMT Line T1</option>
             <option value="SMT Line T2">SMT Line T2</option>
@@ -924,7 +924,15 @@
             <option value="SMT Line P7">SMT Line P7</option>
             <option value="SMT Line P8">SMT Line P8</option>
           </select>
-          <input type="text" id="fai-filter-search" class="login-input" placeholder="Search Model / WO / Auditor..." style="flex:2;min-width:200px;background:rgba(15,23,42,0.8);" oninput="filterFaiHistoryTable()">
+          <!-- Date Range Filter (Max 7 Days) -->
+          <div style="display:flex;align-items:center;gap:0.4rem;background:rgba(15,23,42,0.8);border:1px solid var(--border-color);border-radius:8px;padding:0.35rem 0.6rem;flex-wrap:nowrap;">
+            <span style="font-size:0.78rem;color:var(--accent-cyan);font-weight:bold;white-space:nowrap;">📅 Date Range:</span>
+            <input type="date" id="fai-filter-date-from" class="login-input" style="border:none;background:transparent;padding:0.2rem 0.3rem;font-size:0.8rem;color:#f8fafc;width:125px;" onchange="onFaiDateRangeChange('from')" title="From Date (YYYY-MM-DD)">
+            <span style="color:var(--text-muted);font-size:0.8rem;">to</span>
+            <input type="date" id="fai-filter-date-to" class="login-input" style="border:none;background:transparent;padding:0.2rem 0.3rem;font-size:0.8rem;color:#f8fafc;width:125px;" onchange="onFaiDateRangeChange('to')" title="To Date (YYYY-MM-DD)">
+            <button class="btn-select" style="padding:0.2rem 0.5rem;font-size:0.75rem;border-color:var(--border-color);" onclick="resetFaiDateRange()" title="Reset to last 7 days">7D</button>
+          </div>
+          <input type="text" id="fai-filter-search" class="login-input" placeholder="Search Model / WO / Auditor..." style="flex:2;min-width:180px;background:rgba(15,23,42,0.8);" oninput="filterFaiHistoryTable()">
         </div>
 
         <!-- Records Table -->
@@ -1934,6 +1942,117 @@
   </div>
 </div>
 
+<!-- Modal FAI Edit (Modify Record) -->
+<div id="modal-fai-edit" class="modal-overlay">
+  <div class="modal-content" style="max-width:760px;max-height:90vh;overflow-y:auto;padding:1.5rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;">
+      <div>
+        <h3 style="margin:0;color:#facc15;" id="fai-edit-modal-title">✏️ Modify 5Q4-045 FAI / LAI Record</h3>
+        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.2rem;">Edit production parameters, quality decision, and inspector sign-off</div>
+      </div>
+      <button class="btn-select" onclick="closeEditFaiModal()" style="padding:0.25rem 0.6rem;">✕</button>
+    </div>
+
+    <form id="form-fai-edit" onsubmit="event.preventDefault(); saveFaiEdit();">
+      <input type="hidden" id="fai-edit-id">
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem;margin-bottom:1rem;">
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Record ID (Immutable)</label>
+          <input type="text" id="fai-edit-display-id" class="login-input" style="width:100%;background:rgba(15,23,42,0.5);color:var(--text-muted);cursor:not-allowed;" readonly>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Audit Type</label>
+          <select id="fai-edit-type" class="login-input" style="width:100%;">
+            <option value="FIRST_ARTICLE">First Article (首件)</option>
+            <option value="LAST_ARTICLE">Last Article (末件)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">SMT Production Line *</label>
+          <select id="fai-edit-line" class="login-input" style="width:100%;" required>
+            <option value="SMT Line T1">SMT Line T1</option>
+            <option value="SMT Line T2">SMT Line T2</option>
+            <option value="SMT Line T3">SMT Line T3</option>
+            <option value="SMT Line T4">SMT Line T4</option>
+            <option value="SMT Line T5">SMT Line T5</option>
+            <option value="SMT Line P1">SMT Line P1</option>
+            <option value="SMT Line P2">SMT Line P2</option>
+            <option value="SMT Line P5">SMT Line P5</option>
+            <option value="SMT Line P6">SMT Line P6</option>
+            <option value="SMT Line P7">SMT Line P7</option>
+            <option value="SMT Line P8">SMT Line P8</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem;margin-bottom:1rem;">
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Work Order (工單) *</label>
+          <input type="text" id="fai-edit-wo" class="login-input" style="width:100%;" required>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Product Model (機種) *</label>
+          <input type="text" id="fai-edit-model" class="login-input" style="width:100%;" required>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Customer (客戶)</label>
+          <input type="text" id="fai-edit-customer" class="login-input" style="width:100%;">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem;margin-bottom:1rem;">
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Shift (班別)</label>
+          <select id="fai-edit-shift" class="login-input" style="width:100%;">
+            <option value="Day Shift">Day Shift (白班)</option>
+            <option value="Night Shift">Night Shift (夜班)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Sample Qty / Lot Qty</label>
+          <div style="display:flex;gap:0.4rem;">
+            <input type="number" id="fai-edit-sample-qty" class="login-input" placeholder="Sample" style="width:50%;">
+            <input type="number" id="fai-edit-lot-qty" class="login-input" placeholder="Lot Qty" style="width:50%;">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">PCB P/N (板號)</label>
+          <input type="text" id="fai-edit-pcb-pn" class="login-input" style="width:100%;">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem;margin-bottom:1rem;">
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Inspector (檢驗員) *</label>
+          <input type="text" id="fai-edit-auditor" class="login-input" style="width:100%;" required>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Verifier / Approver (確認核准)</label>
+          <input type="text" id="fai-edit-verifier" class="login-input" style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Overall Quality Gate *</label>
+          <select id="fai-edit-status" class="login-input" style="width:100%;font-weight:bold;">
+            <option value="OK" style="color:#34d399;">✓ OK - Release Production (核准放行)</option>
+            <option value="NG" style="color:#ef4444;">❌ NG - Block Production (攔截重檢)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:1.25rem;">
+        <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Engineering Change / Quality Notes (工程變更或註記)</label>
+        <textarea id="fai-edit-notes" class="login-input" rows="2" style="width:100%;resize:vertical;font-size:0.85rem;" placeholder="Optional notes..."></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;border-top:1px solid var(--border-color);padding-top:1rem;">
+        <button type="button" class="btn-select" onclick="closeEditFaiModal()">Cancel</button>
+        <button type="submit" class="btn-primary" style="background:#facc15;color:#000;border-color:#facc15;font-weight:bold;">💾 Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="modal-fai-wizard" class="modal-overlay">
   <div class="modal-content" style="max-width:920px;max-height:90vh;overflow-y:auto;padding:1.5rem;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;">
@@ -2464,6 +2583,6 @@
       </div>
     </div>
   </div>
-  <script src="js/fai_app.js?v=57"></script>
+  <script src="js/fai_app.js?v=58"></script>
 </body>
 </html>
