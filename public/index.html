@@ -1644,11 +1644,11 @@
       <div style="display:flex;gap:1rem;margin-bottom:1rem;background:#0b0f19;padding:0.75rem 1rem;border-radius:8px;border:1px solid #1e293b;align-items:center;flex-wrap:wrap;">
         <div style="flex:1;min-width:180px;">
           <label style="font-size:0.72rem;color:#94a3b8;display:block;">Product Model:</label>
-          <input type="text" id="setup-master-model" class="login-input" value="PRX-8800" style="width:100%;margin-top:0.2rem;font-size:0.85rem;padding:0.4rem;">
+          <input type="text" id="setup-master-model" class="login-input" value="PRX-8800" oninput="onSetupModelPnInputChange()" style="width:100%;margin-top:0.2rem;font-size:0.85rem;padding:0.4rem;">
         </div>
         <div style="flex:1;min-width:180px;">
           <label style="font-size:0.72rem;color:#94a3b8;display:block;">PCB Part Number:</label>
-          <input type="text" id="setup-master-pn" class="login-input" value="715G9988-P01" style="width:100%;margin-top:0.2rem;font-size:0.85rem;padding:0.4rem;">
+          <input type="text" id="setup-master-pn" class="login-input" value="715G9988-P01" oninput="onSetupModelPnInputChange()" style="width:100%;margin-top:0.2rem;font-size:0.85rem;padding:0.4rem;">
         </div>
         <div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
           <label class="btn-select" style="font-size:0.78rem;padding:0.45rem 0.65rem;border-color:#38bdf8;color:#38bdf8;cursor:pointer;display:inline-block;" title="Upload image from file">
@@ -1671,7 +1671,10 @@
             <span>🔧 Edit Mode</span>
           </button>
           <span id="modal-ultralytics-badge" style="font-size:0.75rem;background:rgba(5,150,105,0.2);color:#34d399;border:1px solid #059669;padding:0.4rem 0.65rem;border-radius:6px;display:inline-flex;align-items:center;gap:5px;">
-            <span>⚡ Ultralytics API:</span> <strong style="color:#fff;">norman-nan / yolo26n</strong>
+            <span>⚡ Ultralytics:</span> <strong style="color:#fff;">norman-nan / yolo26n</strong>
+          </span>
+          <span id="setup-master-status-badge" style="font-size:0.75rem;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:0.4rem 0.65rem;border-radius:6px;display:inline-flex;align-items:center;gap:5px;">
+            <span>⚡ Cache:</span> <strong id="setup-master-status-text" style="color:#fff;">Ready</strong>
           </span>
         </div>
       </div>
@@ -2461,6 +2464,6 @@
       </div>
     </div>
   </div>
-  <script src="js/fai_app.js?v=56"></script>
+  <script src="js/fai_app.js?v=57"></script>
 </body>
 </html>

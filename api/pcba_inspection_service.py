@@ -15,18 +15,16 @@ except ImportError:
 import base64
 import os
 import json
+import re
 import urllib.request
+import urllib.parse
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Tuple, Optional, Dict, Any
 from api.db_adapter import unified_db_query
 
-try:
-    from ultralytics import YOLO
-    ULTRALYTICS_INSTALLED = True
-except ImportError:
-    ULTRALYTICS_INSTALLED = False
+ULTRALYTICS_INSTALLED = True
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
@@ -36,7 +34,18 @@ if not os.path.exists(MASTER_PROFILES_DIR):
 if not os.path.exists(MASTER_PROFILES_DIR):
     MASTER_PROFILES_DIR = "data/master_profiles"
 os.makedirs(MASTER_PROFILES_DIR, exist_ok=True)
-os.makedirs(MASTER_PROFILES_DIR, exist_ok=True)
+
+# ── Zero-delay In-Memory & Normalization Cache for Golden Master Profiles ─────
+_MASTER_CACHE: Dict[str, dict] = {}
+
+def _clean_str(s: Any) -> str:
+    """Collapses consecutive whitespace and trims leading/trailing spaces."""
+    return re.sub(r'\s+', ' ', str(s or '')).strip()
+
+def _slug(s: Any) -> str:
+    """Canonical slug ignoring spaces, hyphens, underscores, slashes, and case."""
+    return re.sub(r'[\s\-_/.]+', '', str(s or '').lower())
+# ─────────────────────────────────────────────────────────────────────────────
 
 # ==============================================================================
 # 1. JSON Schema Contracts (Pydantic Models)
@@ -311,9 +320,14 @@ class UltralyticsCloudClient:
 class PCBAInspectionService:
     def __init__(self, model_path: str = "pcba_polarity_yolov8n.pt"):
         self.ultralytics = UltralyticsCloudClient()
-        if ULTRALYTICS_INSTALLED and os.path.exists(model_path):
-            self.model = YOLO(model_path)
-            self.is_mock = False
+        if os.path.exists(model_path):
+            try:
+                from ultralytics import YOLO
+                self.model = YOLO(model_path)
+                self.is_mock = False
+            except Exception:
+                self.model = MockYOLO(model_path)
+                self.is_mock = True
         else:
             self.model = MockYOLO(model_path)
             self.is_mock = True
@@ -1224,22 +1238,135 @@ def activate_master_profile_endpoint(
 @router.get("/master-profile/{model_no}/{pcb_pn}", response_model=MasterProfileResponse)
 def get_master_profile_endpoint(
     model_no: str,
-    pcb_pn: str,
-    service: PCBAInspectionService = Depends(get_inspection_service)
+    pcb_pn: str
 ):
     """
-    Retrieves the saved Golden Master Profile for a specific Model and PCB P/N (case-insensitive).
+    Retrieves the saved Golden Master Profile for a specific Model and PCB P/N.
+    Uses multi-tiered zero-delay caching (in-memory -> local disk -> DB query with fuzzy whitespace normalization)
+    to eliminate Supabase quota egress and latency.
     """
-    clean_model = model_no.strip().replace("/", "_").replace("\\", "_").lower()
-    clean_pn = pcb_pn.strip().replace("/", "_").replace("\\", "_").lower()
-    target_stem = f"{clean_model}_{clean_pn}"
+    clean_model = _clean_str(model_no)
+    clean_pn = _clean_str(pcb_pn)
+    slug_key = f"{_slug(clean_model)}_{_slug(clean_pn)}"
 
-    # 1. Query Central Database first
+    # 1. Check zero-delay in-memory cache first (0ms, 0 network, 0 quota egress)
+    if slug_key in _MASTER_CACHE:
+        cached = _MASTER_CACHE[slug_key]
+        return MasterProfileResponse(**cached)
+
+    # 2. Check local filesystem cache
+    search_dirs = [
+        MASTER_PROFILES_DIR,
+        os.path.join(PROJECT_ROOT, "data", "master_profiles"),
+        os.path.join(os.getcwd(), "data", "master_profiles"),
+        "/tmp/master_profiles"
+    ]
+    filepath = None
+    for sdir in search_dirs:
+        if not os.path.exists(sdir):
+            continue
+        # Direct check by slug
+        candidate_file = os.path.join(sdir, f"{slug_key}.json")
+        if os.path.exists(candidate_file):
+            filepath = candidate_file
+            break
+        # Search all json files matching model and pn slug
+        for fname in os.listdir(sdir):
+            if fname.lower().endswith(".json"):
+                p = os.path.join(sdir, fname)
+                try:
+                    with open(p, "r", encoding="utf-8") as pf:
+                        d = json.load(pf)
+                    if _slug(d.get("model_no")) == _slug(clean_model) and _slug(d.get("pcb_pn")) == _slug(clean_pn):
+                        filepath = p
+                        break
+                except Exception:
+                    continue
+        if filepath:
+            break
+
+    if filepath and os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            raw_lms = data.get("landmarks", [])
+            lms = []
+            for lm in raw_lms:
+                b = lm.get("box") or lm.get("master_box") or {"x": 0, "y": 0, "width": 20, "height": 20}
+                lms.append(PCBALandmark(
+                    id=lm.get("id", "ROI"),
+                    name=lm.get("name") or lm.get("id", "ROI"),
+                    type=lm.get("type", "FIDUCIAL"),
+                    center=lm.get("center") or [float(b.get("x", 0)) + float(b.get("width", 0)) / 2.0, float(b.get("y", 0)) + float(b.get("height", 0)) / 2.0],
+                    box=CanvasBoundingBox(**b),
+                    master_box=CanvasBoundingBox(**b),
+                    confidence=lm.get("confidence", 1.0),
+                    pin1_pos=lm.get("pin1_pos")
+                ))
+            resp_dict = {
+                "success": True,
+                "model_no": data.get("model_no", clean_model),
+                "pcb_pn": data.get("pcb_pn", clean_pn),
+                "image_b64": data.get("image_b64", ""),
+                "landmarks": lms,
+                "notes": data.get("notes", ""),
+                "is_active": data.get("is_active", True),
+                "updated_at": str(data.get("updated_at", "")),
+                "message": "Master profile loaded from local disk cache."
+            }
+            # Cache in memory
+            _MASTER_CACHE[slug_key] = resp_dict
+            return MasterProfileResponse(**resp_dict)
+        except Exception as e:
+            print("Warning: Local file read error:", e)
+
+    # 3. Query Central Database with fuzzy whitespace and slug matching
+    found_row = None
     try:
-        db_rows = unified_db_query("fai_master_profiles", "GET", params=f"model_no=ilike.{clean_model}&pcb_pn=ilike.{clean_pn}&limit=1")
-        if db_rows and len(db_rows) > 0:
-            row = db_rows[0]
-            raw_lms = row.get("landmarks") or []
+        # A. Query by PCB P/N first (almost always unique or max 2 rows: TOP / BOT)
+        clean_pn_encoded = urllib.parse.quote(f"pcb_pn=ilike.{clean_pn}", safe="=&")
+        db_rows = unified_db_query("fai_master_profiles", "GET", params=clean_pn_encoded)
+        if db_rows:
+            # 1. Exact slug match
+            for r in db_rows:
+                if _slug(r.get("model_no")) == _slug(clean_model):
+                    found_row = r
+                    break
+            # 2. Substring match
+            if not found_row:
+                for r in db_rows:
+                    m_slug = _slug(r.get("model_no"))
+                    c_slug = _slug(clean_model)
+                    if c_slug in m_slug or m_slug in c_slug:
+                        found_row = r
+                        break
+            # 3. If single row for this PN
+            if not found_row and len(db_rows) == 1:
+                found_row = db_rows[0]
+
+        # B. Fallback: Query by model_no if not found by PCB P/N
+        if not found_row:
+            clean_m_encoded = urllib.parse.quote(f"model_no=ilike.{clean_model}", safe="=&")
+            db_rows_m = unified_db_query("fai_master_profiles", "GET", params=clean_m_encoded)
+            if db_rows_m:
+                for r in db_rows_m:
+                    if _slug(r.get("pcb_pn")) == _slug(clean_pn):
+                        found_row = r
+                        break
+                if not found_row and len(db_rows_m) == 1:
+                    found_row = db_rows_m[0]
+
+        # C. Fallback: Query all profiles if still not found (rare, eg. partial names)
+        if not found_row:
+            all_rows = unified_db_query("fai_master_profiles", "GET", params="select=model_no,pcb_pn,landmarks,image_b64,notes,is_active,updated_at")
+            if all_rows:
+                for r in all_rows:
+                    if _slug(r.get("model_no")) == _slug(clean_model) and _slug(r.get("pcb_pn")) == _slug(clean_pn):
+                        found_row = r
+                        break
+
+        if found_row:
+            raw_lms = found_row.get("landmarks") or []
             if isinstance(raw_lms, str):
                 try:
                     raw_lms = json.loads(raw_lms)
@@ -1258,97 +1385,43 @@ def get_master_profile_endpoint(
                     confidence=lm.get("confidence", 1.0),
                     pin1_pos=lm.get("pin1_pos")
                 ))
-            return MasterProfileResponse(
-                success=True,
-                model_no=row.get("model_no", model_no),
-                pcb_pn=row.get("pcb_pn", pcb_pn),
-                image_b64=row.get("image_b64", ""),
-                landmarks=lms,
-                notes=row.get("notes", ""),
-                is_active=row.get("is_active", True),
-                updated_at=str(row.get("updated_at", "")),
-                message="Master profile loaded from database."
-            )
+            
+            resp_dict = {
+                "success": True,
+                "model_no": found_row.get("model_no", clean_model),
+                "pcb_pn": found_row.get("pcb_pn", clean_pn),
+                "image_b64": found_row.get("image_b64", ""),
+                "landmarks": lms,
+                "notes": found_row.get("notes", ""),
+                "is_active": found_row.get("is_active", True),
+                "updated_at": str(found_row.get("updated_at", "")),
+                "message": "Master profile loaded from database."
+            }
+            # Cache in memory
+            _MASTER_CACHE[slug_key] = resp_dict
+            
+            # Save to disk cache so subsequent requests never hit Supabase egress
+            try:
+                os.makedirs(MASTER_PROFILES_DIR, exist_ok=True)
+                disk_save_path = os.path.join(MASTER_PROFILES_DIR, f"{slug_key}.json")
+                serializable_lms = [lm.dict() if hasattr(lm, "dict") else lm for lm in lms]
+                disk_data = dict(resp_dict)
+                disk_data["landmarks"] = serializable_lms
+                with open(disk_save_path, "w", encoding="utf-8") as f:
+                    json.dump(disk_data, f, indent=2)
+            except Exception as disk_err:
+                print("Warning: Could not save master profile to disk cache:", disk_err)
+
+            return MasterProfileResponse(**resp_dict)
+
     except Exception as db_err:
         print("Warning: Database get master profile error:", db_err)
-    
-    filepath = None
-    search_dirs = [MASTER_PROFILES_DIR, "/tmp/master_profiles", os.path.join(os.getcwd(), "data", "master_profiles")]
-    for sdir in search_dirs:
-        if not os.path.exists(sdir):
-            continue
-        for fname in os.listdir(sdir):
-            if fname.lower().endswith(".json"):
-                stem = fname[:-5].lower()
-                if stem == target_stem:
-                    filepath = os.path.join(sdir, fname)
-                    break
-        if filepath:
-            break
-        for fname in os.listdir(sdir):
-            if fname.lower().endswith(".json"):
-                try:
-                    p = os.path.join(sdir, fname)
-                    with open(p, "r", encoding="utf-8") as pf:
-                        d = json.load(pf)
-                    if d.get("model_no", "").strip().lower() == clean_model and d.get("pcb_pn", "").strip().lower() == clean_pn:
-                        filepath = p
-                        break
-                except Exception:
-                    continue
-        if filepath:
-            break
-    
-    if filepath and os.path.exists(filepath):
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            lms = []
-            for lm in data.get("landmarks", []):
-                b = lm.get("box") or lm.get("master_box") or {"x": 0, "y": 0, "width": 20, "height": 20}
-                lms.append(PCBALandmark(
-                    id=lm.get("id", "ROI"),
-                    name=lm.get("name") or lm.get("id", "ROI"),
-                    type=lm.get("type", "FIDUCIAL"),
-                    center=lm.get("center") or [float(b.get("x", 0)) + float(b.get("width", 0)) / 2.0, float(b.get("y", 0)) + float(b.get("height", 0)) / 2.0],
-                    box=CanvasBoundingBox(**b),
-                    master_box=CanvasBoundingBox(**b),
-                    confidence=lm.get("confidence", 1.0),
-                    pin1_pos=lm.get("pin1_pos")
-                ))
-            return MasterProfileResponse(
-                success=True,
-                model_no=data.get("model_no", model_no),
-                pcb_pn=data.get("pcb_pn", pcb_pn),
-                image_b64=data.get("image_b64", ""),
-                landmarks=lms,
-                notes=data.get("notes", ""),
-                is_active=data.get("is_active", True),
-                updated_at=data.get("updated_at", ""),
-                message="Master profile loaded from disk."
-            )
-        except Exception:
-            pass
-            
-    # Fallback to default verified master profile
-    try:
-        with open("public/golden_master_b64.txt", "r") as f:
-            b64 = f.read().strip()
-        img = decode_b64_image(b64)
-        lms = service.detect_landmarks(img)
-        return MasterProfileResponse(
-            success=True,
-            model_no=model_no,
-            pcb_pn=pcb_pn,
-            image_b64=b64,
-            landmarks=lms,
-            notes="Default certified Golden Master reference",
-            is_active=True,
-            updated_at=datetime.now().isoformat(),
-            message="Default calibrated Master profile loaded."
-        )
-    except Exception as e:
-        raise HTTPException(status_code=404, detail="No master profile found.")
+
+    # 4. If not found, return explicit 404 (NEVER return deceptive dummy green board)
+    raise HTTPException(
+        status_code=404,
+        detail=f"No Golden Master standard found for Model '{model_no}' with PCB P/N '{pcb_pn}'."
+    )
 
 @router.post("/detect-landmarks", response_model=DetectLandmarksResponse)
 def detect_landmarks_endpoint(

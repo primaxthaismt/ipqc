@@ -219,6 +219,8 @@ def supabase_rest_fallback(endpoint: str, method: str = "GET", data: dict = None
         base_url = SUPABASE_URL.rstrip('/')
     url = f"{base_url}/{endpoint}"
     if params:
+        if " " in params:
+            params = urllib.parse.quote(params, safe="=&?+,()[]:*")
         url += f"?{params}"
     prefer_str = "return=representation"
     if method.upper() == "POST" and endpoint == "fai_master_profiles":

@@ -1507,8 +1507,109 @@ function reRunAOIComparison() {
 
 
 // ==============================================================================
-// SMT Golden Master Database & Central Library Hub
+// SMT Golden Master Database & Central Library Hub (Zero-Delay IndexedDB & Cloud Sync)
 // ==============================================================================
+
+// High-Performance IndexedDB Storage: Eliminates 100% of Supabase Egress on repeat loads
+const MasterImageDB = {
+  dbName: 'IPQC_GoldenMasterDB',
+  storeName: 'master_profiles',
+  version: 1,
+  _db: null,
+
+  async open() {
+    if (this._db) return this._db;
+    return new Promise((resolve) => {
+      try {
+        if (!window.indexedDB) {
+          resolve(null);
+          return;
+        }
+        const req = window.indexedDB.open(this.dbName, this.version);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            db.createObjectStore(this.storeName, { keyPath: 'cache_key' });
+          }
+        };
+        req.onsuccess = (e) => {
+          this._db = e.target.result;
+          resolve(this._db);
+        };
+        req.onerror = (err) => {
+          console.warn('IndexedDB open error:', err);
+          resolve(null);
+        };
+      } catch (e) {
+        console.warn('IndexedDB unavailable:', e);
+        resolve(null);
+      }
+    });
+  },
+
+  _slug(s) {
+    return (s || '').toString().toLowerCase().replace(/[\s\-_/.]+/g, '');
+  },
+
+  _key(modelNo, pcbPn) {
+    return `${this._slug(modelNo)}_${this._slug(pcbPn)}`;
+  },
+
+  async get(modelNo, pcbPn) {
+    const db = await this.open();
+    if (!db) return null;
+    const key = this._key(modelNo, pcbPn);
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(this.storeName, 'readonly');
+        const store = tx.objectStore(this.storeName);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  },
+
+  async set(modelNo, pcbPn, profileData) {
+    const db = await this.open();
+    if (!db || !profileData) return false;
+    const key = this._key(modelNo, pcbPn);
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.put({
+          ...profileData,
+          cache_key: key,
+          cached_at: Date.now()
+        });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  },
+
+  async delete(modelNo, pcbPn) {
+    const db = await this.open();
+    if (!db) return false;
+    const key = this._key(modelNo, pcbPn);
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.delete(key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  }
+};
 
 let cachedMasterProfiles = [];
 let currentActiveMaster = {
@@ -1556,15 +1657,16 @@ async function loadMasterDatabaseList() {
   } catch (e) {}
 
   const map = new Map();
+  const slug = (s) => (s || '').toString().toLowerCase().replace(/[\s\-_/.]+/g, '');
   localProfiles.forEach(p => {
-    const m = (p.model_no || '').trim().toLowerCase();
-    const pn = (p.pcb_pn || '').trim().toLowerCase();
-    if (m || pn) map.set(`${m}_${pn}`, p);
+    const m = (p.model_no || '').replace(/\s+/g, ' ').trim();
+    const pn = (p.pcb_pn || '').replace(/\s+/g, ' ').trim();
+    if (m || pn) map.set(`${slug(m)}_${slug(pn)}`, { ...p, model_no: m, pcb_pn: pn });
   });
   serverProfiles.forEach(p => {
-    const m = (p.model_no || '').trim().toLowerCase();
-    const pn = (p.pcb_pn || '').trim().toLowerCase();
-    if (m || pn) map.set(`${m}_${pn}`, p);
+    const m = (p.model_no || '').replace(/\s+/g, ' ').trim();
+    const pn = (p.pcb_pn || '').replace(/\s+/g, ' ').trim();
+    if (m || pn) map.set(`${slug(m)}_${slug(pn)}`, { ...p, model_no: m, pcb_pn: pn });
   });
 
   cachedMasterProfiles = Array.from(map.values());
@@ -1706,22 +1808,22 @@ async function deleteMasterProfile(modelNo, pcbPn) {
     return;
   }
 
-  // 1. Immediately remove from localStorage
+  const slug = (s) => (s || '').toString().toLowerCase().replace(/[\s\-_/.]+/g, '');
+  const delKey = `${slug(modelNo)}_${slug(pcbPn)}`;
+
+  // 1. Immediately remove from IndexedDB and localStorage
+  try {
+    await MasterImageDB.delete(modelNo, pcbPn);
+  } catch (e) {}
   try {
     let localList = JSON.parse(localStorage.getItem('fai_custom_master_profiles') || '[]');
-    localList = localList.filter(p => 
-      !(p.model_no && p.model_no.trim().toLowerCase() === modelNo.trim().toLowerCase() && 
-        p.pcb_pn && p.pcb_pn.trim().toLowerCase() === pcbPn.trim().toLowerCase())
-    );
+    localList = localList.filter(p => `${slug(p.model_no)}_${slug(p.pcb_pn)}` !== delKey);
     localStorage.setItem('fai_custom_master_profiles', JSON.stringify(localList));
   } catch (e) {}
 
   // 2. Optimistic UI update: remove from in-memory cache and re-render grid instantly
   if (Array.isArray(cachedMasterProfiles)) {
-    cachedMasterProfiles = cachedMasterProfiles.filter(p => 
-      !( (p.model_no || '').trim().toLowerCase() === modelNo.trim().toLowerCase() && 
-         (p.pcb_pn || '').trim().toLowerCase() === pcbPn.trim().toLowerCase() )
-    );
+    cachedMasterProfiles = cachedMasterProfiles.filter(p => `${slug(p.model_no)}_${slug(p.pcb_pn)}` !== delKey);
     renderMasterDatabaseGrid(cachedMasterProfiles);
     const countBadge = document.getElementById('master-db-total-count');
     if (countBadge) countBadge.textContent = `${cachedMasterProfiles.length} Boards Registered`;
@@ -1729,7 +1831,7 @@ async function deleteMasterProfile(modelNo, pcbPn) {
   
   // 3. Call server DELETE endpoint
   try {
-    const res = await fetch(`/api/pcba-vision/master-profile/${encodeURIComponent(modelNo)}/${encodeURIComponent(pcbPn)}`, {
+    const res = await fetch(`/api/pcba-vision/master-profile/${encodeURIComponent(modelNo.replace(/\s+/g, ' ').trim())}/${encodeURIComponent(pcbPn.replace(/\s+/g, ' ').trim())}`, {
       method: 'DELETE'
     });
     if (!res.ok) {
@@ -1774,26 +1876,16 @@ function openMasterSetupModalFor(modelNo, pcbPn) {
   
   const mInp = document.getElementById('setup-master-model');
   const pInp = document.getElementById('setup-master-pn');
-  if (mInp) mInp.value = modelNo;
-  if (pInp) pInp.value = pcbPn;
+  if (mInp) mInp.value = (modelNo || '').replace(/\s+/g, ' ').trim();
+  if (pInp) pInp.value = (pcbPn || '').replace(/\s+/g, ' ').trim();
   
   modal.classList.add('active');
   loadMasterProfileForSetup();
 }
 
 async function setActiveMasterForInspection(modelNo, pcbPn, profileData = null) {
-  let profile = profileData;
-  if (!profile && modelNo && pcbPn) {
-    try {
-      const res = await fetch(`/api/pcba-vision/master-profile/${encodeURIComponent(modelNo)}/${encodeURIComponent(pcbPn)}`);
-      if (res.ok) profile = await res.json();
-    } catch (e) {
-      console.warn('Error fetching master profile:', e);
-    }
-  }
-
-  let cleanModel = (profile?.model_no || modelNo || '').trim();
-  let cleanPn = (profile?.pcb_pn || pcbPn || '').trim();
+  let cleanModel = (modelNo || '').replace(/\s+/g, ' ').trim();
+  let cleanPn = (pcbPn || '').replace(/\s+/g, ' ').trim();
 
   // Smart normalization: if model is empty or PN has both model and PN
   if (!cleanModel && cleanPn && (cleanPn.includes(' ') || cleanPn.includes('/'))) {
@@ -1803,6 +1895,27 @@ async function setActiveMasterForInspection(modelNo, pcbPn, profileData = null) 
   }
   if (!cleanModel) cleanModel = 'AC02N';
   if (!cleanPn) cleanPn = '910100106320';
+
+  let profile = profileData;
+  if (!profile && cleanModel && cleanPn) {
+    // 1. Check local IndexedDB first (0ms, 0 network, 0 egress)
+    try {
+      profile = await MasterImageDB.get(cleanModel, cleanPn);
+    } catch (e) {}
+
+    // 2. Fetch from server if not yet cached locally
+    if (!profile) {
+      try {
+        const res = await fetch(`/api/pcba-vision/master-profile/${encodeURIComponent(cleanModel)}/${encodeURIComponent(cleanPn)}`);
+        if (res.ok) {
+          profile = await res.json();
+          if (profile) await MasterImageDB.set(cleanModel, cleanPn, profile);
+        }
+      } catch (e) {
+        console.warn('Error fetching master profile for inspection:', e);
+      }
+    }
+  }
 
   const imgB64 = profile?.image_b64 || '/img_golden_master.jpg';
   const landmarks = profile?.landmarks || [];
@@ -1901,8 +2014,8 @@ function openMasterSetupModal() {
   
   const mInp = document.getElementById('fai-inp-model');
   const pInp = document.getElementById('fai-inp-pcb-pn');
-  if (mInp && mInp.value) document.getElementById('setup-master-model').value = mInp.value;
-  if (pInp && pInp.value) document.getElementById('setup-master-pn').value = pInp.value;
+  if (mInp && mInp.value) document.getElementById('setup-master-model').value = mInp.value.replace(/\s+/g, ' ').trim();
+  if (pInp && pInp.value) document.getElementById('setup-master-pn').value = pInp.value.replace(/\s+/g, ' ').trim();
   
   loadMasterProfileForSetup();
 }
@@ -1912,46 +2025,144 @@ function closeMasterSetupModal() {
   if (modal) modal.classList.remove('active');
 }
 
-async function loadMasterProfileForSetup() {
-  const modelNo = (document.getElementById('setup-master-model')?.value || 'PRX-8800').trim();
-  const pcbPn = (document.getElementById('setup-master-pn')?.value || '715G9988-P01').trim();
+function updateSetupMasterStatusBadge(text, type = 'info') {
+  const badge = document.getElementById('setup-master-status-badge');
+  const txt = document.getElementById('setup-master-status-text');
+  if (!badge) return;
+  if (txt) txt.textContent = text;
+  if (type === 'success') {
+    badge.style.background = 'rgba(5,150,105,0.2)';
+    badge.style.borderColor = '#059669';
+    badge.style.color = '#34d399';
+  } else if (type === 'warning') {
+    badge.style.background = 'rgba(234,179,8,0.15)';
+    badge.style.borderColor = '#eab308';
+    badge.style.color = '#fde047';
+  } else {
+    badge.style.background = 'rgba(56,189,248,0.15)';
+    badge.style.borderColor = 'rgba(56,189,248,0.3)';
+    badge.style.color = '#38bdf8';
+  }
+}
+
+let _setupModelPnDebounce = null;
+function onSetupModelPnInputChange() {
+  clearTimeout(_setupModelPnDebounce);
+  _setupModelPnDebounce = setTimeout(() => {
+    loadMasterProfileForSetup();
+  }, 350);
+}
+
+function applyMasterProfileToSetupUI(data, statusMsg = '✓ Master Standard Loaded', statusType = 'success') {
+  currentMasterLandmarks = data.landmarks || [];
   
+  const masterImg = document.getElementById('setup-master-img');
+  const canvas = document.getElementById('setup-master-canvas');
+  if (masterImg && data.image_b64) {
+    masterImg.src = data.image_b64;
+  }
+  
+  const renderMasterCanvas = () => {
+    if (canvas && masterImg) {
+      drawMasterLandmarksOverlay(currentMasterLandmarks, masterImg, canvas);
+    }
+  };
+  if (masterImg && masterImg.complete) renderMasterCanvas();
+  else if (masterImg) masterImg.onload = renderMasterCanvas;
+  
+  renderSetupLandmarksTable(currentMasterLandmarks);
+  updateSetupMasterStatusBadge(statusMsg, statusType);
+}
+
+function clearSetupMasterUI(modelNo, pcbPn) {
+  currentMasterLandmarks = [];
+  const masterImg = document.getElementById('setup-master-img');
+  const canvas = document.getElementById('setup-master-canvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  if (masterImg) {
+    masterImg.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="350" viewBox="0 0 600 350"><rect width="100%" height="100%" fill="%230b0f19"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" fill="%2338bdf8" font-family="sans-serif" font-size="16" font-weight="bold">No Golden Master Registered</text><text x="50%" y="58%" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="sans-serif" font-size="13">Upload photo or capture from camera to calibrate this board</text></svg>';
+  }
+  renderSetupLandmarksTable([]);
+  updateSetupMasterStatusBadge(`⚠️ Not Registered (${modelNo || 'No Model'})`, 'warning');
+}
+
+async function loadMasterProfileForSetup() {
+  const mInp = document.getElementById('setup-master-model');
+  const pInp = document.getElementById('setup-master-pn');
+  const modelNo = (mInp?.value || 'PRX-8800').replace(/\s+/g, ' ').trim();
+  const pcbPn = (pInp?.value || '715G9988-P01').replace(/\s+/g, ' ').trim();
+  
+  if (!modelNo && !pcbPn) {
+    clearSetupMasterUI('', '');
+    return;
+  }
+
+  const slug = (s) => (s || '').toString().toLowerCase().replace(/[\s\-_/.]+/g, '');
+  const reqSlug = `${slug(modelNo)}_${slug(pcbPn)}`;
+
+  // 1. Check client IndexedDB cache first: renders in <5ms with 0 network egress
+  try {
+    const cached = await MasterImageDB.get(modelNo, pcbPn);
+    if (cached && cached.image_b64) {
+      applyMasterProfileToSetupUI(cached, '⚡ Instant Cached Master (0ms)', 'success');
+      return;
+    }
+  } catch (e) {
+    console.warn('MasterImageDB get error:', e);
+  }
+
+  // 2. Progressive preview: check in-memory cachedMasterProfiles for thumbnail
+  if (Array.isArray(cachedMasterProfiles)) {
+    const inMem = cachedMasterProfiles.find(p => `${slug(p.model_no)}_${slug(p.pcb_pn)}` === reqSlug);
+    if (inMem && (inMem.thumbnail_b64 || inMem.image_b64)) {
+      const previewImg = inMem.thumbnail_b64 || inMem.image_b64;
+      const masterImg = document.getElementById('setup-master-img');
+      if (masterImg) masterImg.src = previewImg;
+      if (Array.isArray(inMem.landmarks) && inMem.landmarks.length > 0) {
+        currentMasterLandmarks = inMem.landmarks;
+        renderSetupLandmarksTable(currentMasterLandmarks);
+      }
+      updateSetupMasterStatusBadge('⏳ Loading HD Master Image...', 'info');
+    } else {
+      updateSetupMasterStatusBadge('🔄 Fetching Master Standard...', 'info');
+    }
+  } else {
+    updateSetupMasterStatusBadge('🔄 Fetching Master Standard...', 'info');
+  }
+
+  // 3. Fetch from Server API
   let data = null;
   try {
     const res = await fetch(`/api/pcba-vision/master-profile/${encodeURIComponent(modelNo)}/${encodeURIComponent(pcbPn)}`);
     if (res.ok) {
       data = await res.json();
+    } else if (res.status === 404) {
+      clearSetupMasterUI(modelNo, pcbPn);
+      return;
     }
   } catch (err) {
     console.warn('API load master profile error:', err);
   }
 
-  // Fallback to localStorage
+  // 4. Fallback check in localStorage
   if (!data) {
     try {
       const localList = JSON.parse(localStorage.getItem('fai_custom_master_profiles') || '[]');
-      data = localList.find(p => p.model_no.toLowerCase() === modelNo.toLowerCase() && p.pcb_pn.toLowerCase() === pcbPn.toLowerCase());
+      data = localList.find(p => `${slug(p.model_no)}_${slug(p.pcb_pn)}` === reqSlug);
     } catch (e) {}
   }
 
-  if (data) {
-    currentMasterLandmarks = data.landmarks || [];
-    
-    const masterImg = document.getElementById('setup-master-img');
-    if (masterImg && data.image_b64) {
-      masterImg.src = data.image_b64;
-    }
-    
-    const renderMasterCanvas = () => {
-      const canvas = document.getElementById('setup-master-canvas');
-      if (canvas && masterImg) {
-        drawMasterLandmarksOverlay(currentMasterLandmarks, masterImg, canvas);
-      }
-    };
-    if (masterImg.complete) renderMasterCanvas();
-    else masterImg.onload = renderMasterCanvas;
-    
-    renderSetupLandmarksTable(currentMasterLandmarks);
+  // 5. Apply or Clear
+  if (data && data.image_b64) {
+    applyMasterProfileToSetupUI(data, '✓ Master Standard Synced', 'success');
+    try {
+      await MasterImageDB.set(modelNo, pcbPn, data);
+    } catch (e) {}
+  } else {
+    clearSetupMasterUI(modelNo, pcbPn);
   }
 }
 
@@ -2252,10 +2463,19 @@ async function saveMasterProfileFromSetup() {
       updated_at: new Date().toISOString()
     };
 
-    // Store in localStorage for persistent client cache on tablet
+    // Store in IndexedDB for instant 0ms, zero-egress loads
+    try {
+      await MasterImageDB.set(modelNo, pcbPn, profileData);
+    } catch (dbErr) {
+      console.warn('MasterImageDB save failed:', dbErr);
+    }
+
+    // Store in localStorage for lightweight fallback
     try {
       let localList = JSON.parse(localStorage.getItem('fai_custom_master_profiles') || '[]');
-      localList = localList.filter(p => !(p.model_no.toLowerCase() === modelNo.toLowerCase() && p.pcb_pn.toLowerCase() === pcbPn.toLowerCase()));
+      const slug = (s) => (s || '').toString().toLowerCase().replace(/[\s\-_/.]+/g, '');
+      const saveKey = `${slug(modelNo)}_${slug(pcbPn)}`;
+      localList = localList.filter(p => `${slug(p.model_no)}_${slug(p.pcb_pn)}` !== saveKey);
       localList.unshift(profileData);
       localStorage.setItem('fai_custom_master_profiles', JSON.stringify(localList));
     } catch (lsErr) {
