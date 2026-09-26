@@ -1,4 +1,13 @@
+import sys
 import os
+
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_CURRENT_DIR)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+if _CURRENT_DIR not in sys.path:
+    sys.path.insert(0, _CURRENT_DIR)
+
 import re
 import json
 import time
@@ -21,7 +30,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", os.environ.get("SUPABASE_ANON_KEY"
 # Reduces Supabase egress by serving repeated GET requests from RAM.
 _STATIC_TABLE_CACHE: dict = {}          # { table: {"data": [...], "ts": float} }
 _STATIC_CACHE_TTL: int = 300            # 5 minutes
-_STATIC_CACHEABLE_TABLES = {"stations", "checklist_master"}
+_STATIC_CACHEABLE_TABLES = {"stations", "checklist_master", "sys_lines", "sys_defects"}
 
 def _cache_get(table: str):
     """Return cached list for *table* if still fresh, else None."""
@@ -222,9 +231,21 @@ def supabase_rest_fallback(endpoint: str, method: str = "GET", data: dict = None
         if " " in params:
             params = urllib.parse.quote(params, safe="=&?+,()[]:*")
         url += f"?{params}"
-    prefer_str = "return=representation"
-    if method.upper() == "POST" and endpoint in ("fai_master_profiles", "fai_audits"):
-        prefer_str = "resolution=merge-duplicates,return=representation"
+    # ── Egress Optimization ──────────────────────────────────────────────────
+    # For writes (PATCH, DELETE, and heavy POSTs), use return=minimal.
+    # When return=minimal is set, Supabase responds with HTTP 204 No Content (0 bytes egress).
+    # Requesting return=representation causes Supabase to serialize and return the entire
+    # modified rows across the wire (including huge base64 photos), causing severe egress spikes.
+    if method.upper() in ("PATCH", "DELETE"):
+        prefer_str = "return=minimal"
+    elif method.upper() == "POST":
+        if endpoint in ("fai_master_profiles", "fai_audits"):
+            prefer_str = "resolution=merge-duplicates,return=minimal"
+        else:
+            prefer_str = "return=minimal"
+    else:
+        prefer_str = "return=representation"
+
     headers = {
         "Content-Type": "application/json",
         "Prefer": prefer_str
@@ -237,7 +258,9 @@ def supabase_rest_fallback(endpoint: str, method: str = "GET", data: dict = None
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         with urllib.request.urlopen(req, timeout=25) as resp:
             res_body = resp.read().decode("utf-8")
-            return json.loads(res_body) if res_body else []
+            if not res_body:
+                return [data] if (data and method.upper() == "POST") else []
+            return json.loads(res_body)
     except Exception as e:
         err_msg = str(e)
         if hasattr(e, 'read'):
@@ -247,6 +270,17 @@ def supabase_rest_fallback(endpoint: str, method: str = "GET", data: dict = None
                 pass
         print(f"[Supabase REST] {method} {url} error: {err_msg}")
         return None
+
+import threading
+
+def _async_sync_to_supabase(endpoint: str, method: str, data: dict, params: str):
+    """Background worker to mirror writes from Oracle Primary DB to Supabase Secondary DB asynchronously."""
+    def _worker():
+        try:
+            supabase_rest_fallback(endpoint, method, data, params)
+        except Exception as e:
+            print(f"[Supabase Backup Sync] {method} {endpoint} warning: {e}")
+    threading.Thread(target=_worker, daemon=True).start()
 
 def unified_db_query(endpoint: str, method: str = "GET", data: dict = None, params: str = ""):
     # ── TTL cache: serve static tables from memory on unfiltered GETs ──────
@@ -261,6 +295,7 @@ def unified_db_query(endpoint: str, method: str = "GET", data: dict = None, para
             return cached
     # ────────────────────────────────────────────────────────────────────────
 
+    # PRIMARY: Oracle VM PostgreSQL (Local 127.0.0.1, 0 bytes egress, ~1-5ms latency)
     pool = get_pg_pool()
     if pool:
         sql, sql_params = parse_postgrest_query(endpoint, method, data, params)
@@ -284,6 +319,11 @@ def unified_db_query(endpoint: str, method: str = "GET", data: dict = None, para
                     # Populate cache for unfiltered GET on static tables
                     if _cacheable:
                         _cache_set(endpoint, res)
+                    
+                    # Mirror write to Secondary Supabase in background thread
+                    if method.upper() in ("POST", "PATCH", "DELETE"):
+                        _async_sync_to_supabase(endpoint, method, data, params)
+
                     return res
                 else:
                     conn.commit()
@@ -292,6 +332,11 @@ def unified_db_query(endpoint: str, method: str = "GET", data: dict = None, para
                     # Writes invalidate the cache so next GET re-fetches fresh data
                     if endpoint in _STATIC_CACHEABLE_TABLES:
                         _cache_invalidate(endpoint)
+
+                    # Mirror write to Secondary Supabase in background thread
+                    if method.upper() in ("POST", "PATCH", "DELETE"):
+                        _async_sync_to_supabase(endpoint, method, data, params)
+
                     return []
             except Exception:
                 if conn:
@@ -301,7 +346,7 @@ def unified_db_query(endpoint: str, method: str = "GET", data: dict = None, para
                     except Exception:
                         pass
 
-    # Seamless Fallback to Supabase PostgREST
+    # SECONDARY / FALLBACK: Supabase PostgREST (used if Oracle VM is down or outside VM)
     result = supabase_rest_fallback(endpoint, method, data, params)
     # Cache Supabase GET results for static tables; invalidate on writes
     if _cacheable and isinstance(result, list):

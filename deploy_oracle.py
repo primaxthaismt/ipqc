@@ -43,7 +43,7 @@ ssh_res = subprocess.run(
     ['ssh', '-i', key_path, '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes', f'ubuntu@{vm_ip}', remote_cmd],
     capture_output=True,
     text=True,
-    timeout=15
+    timeout=35
 )
 print("SSH STDOUT:\n" + ssh_res.stdout)
 if ssh_res.stderr:

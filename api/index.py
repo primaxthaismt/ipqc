@@ -1,4 +1,14 @@
+import sys
 import os
+
+# Guarantee root directory is on python path
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_CURRENT_DIR)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+if _CURRENT_DIR not in sys.path:
+    sys.path.insert(0, _CURRENT_DIR)
+
 import json
 import secrets
 import hashlib
@@ -498,6 +508,15 @@ def read_root():
             return HTMLResponse(content=f.read())
     return {"message": "Smart IPQC API Server Live"}
 
+@router.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "ipqc-system",
+        "mode": "oracle_primary",
+        "timestamp": datetime.now(FACTORY_TZ).isoformat()
+    }
+
 # AUTH ENDPOINTS
 @router.post("/auth/register")
 def register(data: RegisterModel):
@@ -557,10 +576,11 @@ def register(data: RegisterModel):
 def login(data: LoginModel):
     clean_username = data.username.strip()
     
-    # 1. Try querying Supabase Database
-    db_users = supabase_db_query("users", params=f"or=(username.eq.{clean_username},email.eq.{clean_username})&select=*")
-    if not db_users:
-        db_users = supabase_db_query("users", params=f"username=eq.{clean_username}&select=*")
+    # 1. Try querying Database with explicit column projection (no users.email error)
+    db_users = supabase_db_query(
+        "users",
+        params=f"username=eq.{clean_username}&select=id,username,password_hash,full_name,role,line_assignment,language_pref,is_active"
+    )
     target_user = None
     if db_users and len(db_users) > 0:
         target_user = db_users[0]

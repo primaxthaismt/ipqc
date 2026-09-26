@@ -1,3 +1,13 @@
+import sys
+import os
+
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_CURRENT_DIR)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+if _CURRENT_DIR not in sys.path:
+    sys.path.insert(0, _CURRENT_DIR)
+
 try:
     import cv2
     CV2_AVAILABLE = True
@@ -796,19 +806,32 @@ def save_master_profile_endpoint(
                         conn = pool.getconn()
                         try:
                             with conn.cursor() as cur:
-                                cur.execute("UPDATE fai_master_profiles SET is_active = false WHERE LOWER(model_no) != LOWER(%s) OR LOWER(pcb_pn) != LOWER(%s);", (req.model_no.strip(), req.pcb_pn.strip()))
+                                cur.execute("UPDATE fai_master_profiles SET is_active = false WHERE is_active = true AND (LOWER(model_no) != LOWER(%s) OR LOWER(pcb_pn) != LOWER(%s));", (req.model_no.strip(), req.pcb_pn.strip()))
                                 conn.commit()
                         finally:
                             pool.putconn(conn)
                     else:
-                        unified_db_query("fai_master_profiles", "PATCH", params=f"model_no=neq.{req.model_no.strip()}", data={"is_active": False})
+                        # Safely find currently active profile and deactivate only that specific row (avoid table-wide neq PATCH)
+                        active_rows = unified_db_query("fai_master_profiles", "GET", params="is_active=eq.true&select=model_no,pcb_pn")
+                        if isinstance(active_rows, list):
+                            for ar in active_rows:
+                                if ar.get("model_no") != req.model_no.strip() or ar.get("pcb_pn") != req.pcb_pn.strip():
+                                    m_enc = urllib.parse.quote(ar.get("model_no", ""))
+                                    p_enc = urllib.parse.quote(ar.get("pcb_pn", ""))
+                                    unified_db_query("fai_master_profiles", "PATCH", params=f"model_no=eq.{m_enc}&pcb_pn=eq.{p_enc}", data={"is_active": False})
                 except Exception:
                     pass
 
+            # Sync to secondary Supabase asynchronously in background (avoid blocking & high egress)
             try:
+                import threading
                 from api.db_adapter import get_pg_pool, supabase_rest_fallback
                 if get_pg_pool():
-                    supabase_rest_fallback("fai_master_profiles", "POST", data=db_row)
+                    threading.Thread(
+                        target=supabase_rest_fallback,
+                        args=("fai_master_profiles", "POST", db_row),
+                        daemon=True
+                    ).start()
             except Exception:
                 pass
         except Exception as db_err:
@@ -1162,9 +1185,18 @@ def activate_master_profile_endpoint(
         try:
             target_rows = unified_db_query("fai_master_profiles", "GET", params=f"model_no=ilike.{clean_model}&pcb_pn=ilike.{clean_pn}&limit=1")
             if target_rows and not activated_data:
-                target_row = target_rows[0]
                 unified_db_query("fai_master_profiles", "PATCH", params=f"model_no=ilike.{clean_model}&pcb_pn=ilike.{clean_pn}", data={"is_active": True, "updated_at": datetime.now().isoformat()})
-                unified_db_query("fai_master_profiles", "PATCH", params=f"model_no=neq.{target_row.get('model_no')}", data={"is_active": False})
+                # Safely deactivate other active profiles without table-wide neq scan
+                try:
+                    active_rows = unified_db_query("fai_master_profiles", "GET", params="is_active=eq.true&select=model_no,pcb_pn")
+                    if isinstance(active_rows, list):
+                        for ar in active_rows:
+                            if ar.get("model_no") != target_row.get("model_no") or ar.get("pcb_pn") != target_row.get("pcb_pn"):
+                                m_enc = urllib.parse.quote(ar.get("model_no", ""))
+                                p_enc = urllib.parse.quote(ar.get("pcb_pn", ""))
+                                unified_db_query("fai_master_profiles", "PATCH", params=f"model_no=eq.{m_enc}&pcb_pn=eq.{p_enc}", data={"is_active": False})
+                except Exception:
+                    pass
                 raw_lms = target_row.get("landmarks") or []
                 if isinstance(raw_lms, str):
                     raw_lms = json.loads(raw_lms)
